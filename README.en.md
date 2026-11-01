@@ -2,12 +2,13 @@
 
 English ｜ [繁體中文](README.md)
 
-A layout for the [herdr app](https://herdr.dev): the bottom status bar shows, at its right end, how much of your Claude, Codex and Grok plans is left.
+A layout for the [herdr app](https://herdr.dev): the bottom status bar shows, at its right end, how much of your Claude, Codex, Grok and Antigravity plans is left.
 
 ![Quota Main](preview.png)
 
 - **Weekly limit**: the brand logo followed by the percentage (yellow from 70 %, red from 90 %, plus the days until reset when it's nearly used up)
-- **5-hour limit** (only Claude has one today): a small bar with the percentage inside, followed by the time until it resets
+- **5-hour limit** (Claude and Antigravity have one): a small bar with the percentage inside, followed by the time until it resets (no countdown while it's at 0 %)
+- **Antigravity** (agy) splits its limits into groups: after its logo, one segment per group — `Gemini` (Gemini Flash / Pro), `Opus` (Claude Opus, Sonnet, GPT-OSS) and `Argon` (Gemini 4 Argon, weekly only)
 - **Click** for a popup with a bar per limit, exact reset times, the plan and how fresh the data is, and a refresh button
 - With [tendr](https://github.com/ailazytech/tendr) installed, a "📋 tendr" button toggles the tendr board on the right, and Claude Code conversations come back automatically after a reboot
 
@@ -47,8 +48,10 @@ tendr's installer records its location in `~/.tendr/install.json`. When the stat
 | Claude | `~/.claude/.credentials.json` (or `CLAUDE_CONFIG_DIR`) | `api.anthropic.com/api/oauth/usage` |
 | Codex | the latest session logs in `~/.codex/sessions` | nothing (offline) |
 | Grok | `~/.grok/auth.json` | `cli-chat-proxy.grok.com/v1/billing` |
+| Antigravity | no login files: runs `agy -p /usage --output-format json` | agy asks its own service (no model quota used) |
 
-- Results are cached in `%LOCALAPPDATA%\herdr-quota\cache.json` (`~/.cache/herdr-quota` elsewhere): Claude 5 minutes (the API is rate limited), Grok 2 minutes
+- Results are cached in `%LOCALAPPDATA%\herdr-quota\cache.json` (`~/.cache/herdr-quota` elsewhere): Claude 5 minutes (the API is rate limited), Grok 2 minutes, Antigravity 3 minutes (each check starts agy, about 5 s)
+- Without agy installed, Antigravity isn't shown. agy reports what's left; like the others, the bar shows what's used
 - **Tokens are never refreshed** (that would steal the CLI's login). An expired token shows 🔑; open that CLI once
 - Codex updates its limits only at the end of a turn; some plans have only a weekly limit
 - A service you're not logged in to shows 🔑 or ⚠️ without affecting the others
@@ -70,10 +73,11 @@ In `~/.config/herdr-app/mods/quota-status/config.json` (create it; updates leave
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
-| `providers` | Which services to show, in order | `["claude", "codex", "grok"]` |
+| `providers` | Which services to show, in order | `["claude", "codex", "grok", "agy"]` |
 | `warnAt` | Red from this percentage | `90` |
-| `ttlSec` | Cache seconds per service | `{ "claude": 300, "grok": 120 }` |
+| `ttlSec` | Cache seconds per service | `{ "claude": 300, "grok": 120, "agy": 180 }` |
 | `timeoutMs` | Network timeout | `8000` |
+| `agyTimeoutMs` | Timeout for `agy -p /usage` | `30000` |
 
 ## Commands
 

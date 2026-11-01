@@ -1,7 +1,8 @@
 // quota-status：herdr App 底部狀態列（從內建的 workspace-status 複製），右下角加上 AI 額度。
 // 精簡版：品牌 logo、週額度百分比、5 小時進度條（百分比寫在條裡）與重置倒數；點一下開詳細小視窗（claude-hud 樣式）。
 // 小視窗是同一個 mod 以 props().detail 開啟；資料放 shared，任一邊重新整理兩邊都更新。
-// 額度由同一個資料夾的 quota.mjs 抓（Claude／Codex／Grok，各家 CLI 本機的登入資訊）。
+// 額度由同一個資料夾的 quota.mjs 抓（Claude／Codex／Grok 讀各家 CLI 本機的登入資訊；Antigravity 跑 agy 自己的 /usage）。
+// Antigravity 的額度分組（Gemini、Opus＝Claude 與 GPT、Argon），一個圖示後面每組各一段。
 // 有裝 tendr 的話（~/.tendr/install.json），也負責開機後接回 Claude，以及開關右側的 tendr 看板
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
@@ -12,9 +13,9 @@ const SHARED_KEY = MOD + ".quota";
 // 重開機後接回 Claude：App 一啟動跑一次，core 恢復終端機可能晚一點，前 10 分鐘每分鐘再看一次
 const RESUME_TRIES = 10;
 const LABEL = { "5h": "Usage", week: "Weekly", month: "Monthly", period: "Period" };
-const NAME = { claude: "Claude", codex: "Codex", grok: "Grok" };
+const NAME = { claude: "Claude", codex: "Codex", grok: "Grok", agy: "Antigravity" };
 // 品牌圖示用 App 內建的 icons/：彩色的用 image，單色（currentColor）的用 svg 跟著文字色
-const LOGO = { claude: ["image", "icons/claude.svg"], codex: ["image", "icons/codex.svg"], grok: ["svg", "icons/grok.svg"] };
+const LOGO = { claude: ["image", "icons/claude.svg"], codex: ["image", "icons/codex.svg"], grok: ["svg", "icons/grok.svg"], agy: ["image", "icons/antigravity.svg"] };
 const WARN_AT = 90;
 const BAR = 48;
 
@@ -148,8 +149,18 @@ export default class QuotaStatus extends View {
     else { run("layout.select", { stack: "panel-body", child: "tendr" }); run("layout.show", { id: "panel" }); }
   }
 
+  // 小視窗高度跟著行數：每家一行，分組的每組一行，有備註再加一行
   openDetail(at) {
-    openOverlay({ mod: MOD, kind: "popup", props: { detail: true }, width: 700, height: 190, ...(at ? { at } : {}) });
+    const data = shared(SHARED_KEY)?.data ?? [];
+    const now = Date.now();
+    let h = 28 + 20 + 10;
+    for (const r of data) {
+      const good = r.good;
+      const lines = good?.groups?.length || 1;
+      const notes = Boolean(good?.plan || good?.groups?.some((g) => g.models) || (good?.asOf && now - good.asOf > 120_000) || (r.error && good));
+      h += 10 + lines * 18 + (lines - 1) * 4 + (notes ? 18 : 0);
+    }
+    openOverlay({ mod: MOD, kind: "popup", props: { detail: true }, width: 760, height: Math.max(190, Math.min(460, Math.round(h))), ...(at ? { at } : {}) });
   }
 
   // ---- 狀態列：精簡版 ----
@@ -160,8 +171,21 @@ export default class QuotaStatus extends View {
     if (!good || (r.error && allReset(good, now))) {
       return h_flex().gap(4).items_center().child(logo(r.id, 13)).child(div().text_color(t.ansi3).child(errorEmoji(r.error)));
     }
+    // 分組的（Antigravity）：圖示一次，後面每組「短名稱 週額度 5 小時」，組之間用 · 隔開
+    if (good.groups) {
+      const segs = [];
+      good.groups.forEach((g, i) => {
+        if (i) segs.push(div().text_color(t.dim).child("·"));
+        segs.push(h_flex().gap(5).items_center().child(div().text_color(t.dim).child(g.short)).children(this.windowParts(g.windows, t, now)));
+      });
+      return h_flex().gap(6).items_center().child(logo(r.id, 13)).children(segs);
+    }
+    return h_flex().gap(5).items_center().child(logo(r.id, 13)).children(this.windowParts(good.windows, t, now));
+  }
+
+  windowParts(windows, t, now) {
     const parts = [];
-    for (const w of good.windows.filter((x) => x.kind !== "5h")) {
+    for (const w of windows.filter((x) => x.kind !== "5h")) {
       const left = w.resetsAt ? w.resetsAt - now : null;
       if (left != null && left <= 0) {
         parts.push(div().text_color(t.dim).child("✓"));
@@ -172,14 +196,15 @@ export default class QuotaStatus extends View {
       const soon = pct >= WARN_AT && left != null ? ` ${fmtShort(left)}` : "";
       parts.push(div().text_color(toneOf(t, pct, t.muted)).child(`${pct}%${soon}`));
     }
-    for (const w of good.windows.filter((x) => x.kind === "5h")) {
+    for (const w of windows.filter((x) => x.kind === "5h")) {
       const left = w.resetsAt ? w.resetsAt - now : null;
       // 過了重置時間就是新的一輪，還沒抓到新資料前當 0%
       const live = left == null || left > 0;
       parts.push(this.miniBar(live ? Math.round(w.used) : 0, t));
-      if (live && left != null) parts.push(div().text_color(t.dim).child(fmtCompact(left)));
+      // 還沒用（0%）時倒數沒意義（沒開始用就一直是滿的 5 小時），省下寬度
+      if (live && left != null && Math.round(w.used) > 0) parts.push(div().text_color(t.dim).child(fmtCompact(left)));
     }
-    return h_flex().gap(5).items_center().child(logo(r.id, 13)).children(parts);
+    return parts;
   }
 
   miniBar(pct, t) {
@@ -220,19 +245,29 @@ export default class QuotaStatus extends View {
     if (!good || (r.error && allReset(good, now))) {
       body = div().text_color(t.ansi3).child(`${errorEmoji(r.error)} ${r.errorDetail ?? r.error ?? "沒有資料"}`);
     } else {
-      const segs = [];
-      good.windows.forEach((w, i) => {
-        if (i) segs.push(div().text_color(t.dim).child("|"));
-        segs.push(this.windowView(w, t, now));
-      });
-      body = h_flex().gap(6).items_center().children(segs);
+      const line = (windows) => {
+        const segs = [];
+        windows.forEach((w, i) => {
+          if (i) segs.push(div().text_color(t.dim).child("|"));
+          segs.push(this.windowView(w, t, now));
+        });
+        return h_flex().gap(6).items_center().children(segs);
+      };
+      // 分組的一組一行：短名稱在前
+      body = good.groups
+        ? v_flex().gap(4).children(good.groups.map((g) => h_flex().gap(6).items_center()
+          .child(div().w(46).text_color(t.foreground).child(g.short)).child(line(g.windows))))
+        : line(good.windows);
     }
     const notes = [];
     if (good?.plan) notes.push(good.plan);
+    for (const g of good?.groups ?? []) if (g.models) notes.push(`${g.short}＝${g.models}`);
     if (good?.asOf && now - good.asOf > 120_000) notes.push(`資料時間 ${clock(good.asOf)}`);
     if (r.error && good && !allReset(good, now)) notes.push(r.errorDetail ?? r.error);
+    // 好幾行（分組）時名稱對齊第一行
+    const top = good?.groups ? h_flex().gap(8).items_start() : h_flex().gap(8).items_center();
     return v_flex().gap(2)
-      .child(h_flex().gap(8).items_center().child(head).child(body))
+      .child(top.child(head).child(body))
       .when(notes.length > 0, (el) => el.child(div().pl(90).text_color(t.dim).text_size(11).child(notes.join(" · "))));
   }
 

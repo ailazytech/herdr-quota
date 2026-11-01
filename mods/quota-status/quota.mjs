@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-// Claude / Codex / Grok 的 5h、週額度與重置時間。讀各家 CLI 本機的登入資訊，只送到各自官方的用量 API。
+// Claude / Codex / Grok / Antigravity（agy）的 5h、週額度與重置時間。讀各家 CLI 本機的登入資訊，只送到各自官方的用量 API；
+// agy 直接跑它自己的 `agy -p /usage`（不碰 token、不耗模型額度）。
 //   node quota.mjs json [--force]  原始結果（quota-status 狀態列讀這個）
 //   node quota.mjs line            一行文字
 //   node quota.mjs refresh         忽略快取重抓，印出一行
 //   node quota.mjs detail [--wait] 詳細表格；--wait 會等按鍵
 // 設定：同一個資料夾的 config.json（或 HERDR_QUOTA_CONFIG 指的檔），見 DEFAULTS
+import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -16,11 +18,14 @@ const CONFIG_FILE = process.env.HERDR_QUOTA_CONFIG ?? path.join(path.dirname(fil
 const GROK_HOME = process.env.GROK_HOME ?? path.join(HOME, '.grok');
 
 const DEFAULTS = {
-  providers: ['claude', 'codex', 'grok'],
+  // 沒裝 agy 的電腦不顯示它（見 PROVIDERS 的 optional）
+  providers: ['claude', 'codex', 'grok', 'agy'],
   warnAt: 90,
-  // usage API 有限流，claude-hud 也是 5 分鐘抓一次
-  ttlSec: { claude: 300, grok: 120 },
+  // usage API 有限流，claude-hud 也是 5 分鐘抓一次；agy 每次要起一個 CLI（約 5 秒），3 分鐘一次
+  ttlSec: { claude: 300, grok: 120, agy: 180 },
   timeoutMs: 8000,
+  // agy 啟動時可能要先續期登入，給它久一點
+  agyTimeoutMs: 30000,
 };
 
 function loadConfig() {
@@ -224,12 +229,64 @@ function grokHudCache() {
   };
 }
 
+// ---- Antigravity CLI（agy）：跑它自己的 /usage，拿各組模型的額度 ----
+// 回應的 command.data.groups 是一組一組共用額度的模型（Gemini、Claude 與 GPT、Gemini 4 Argon…），
+// 每組有 weekly、5h 的 bucket，給的是剩下的比例（remaining_fraction）；這裡跟其他家一樣換成用掉的百分比
+
+// 狀態列放不下完整組名：用短名稱（使用者講的 Gemini／Opus／Argon），認不得的取第一個字
+const AGY_SHORT = [[/argon/i, 'Argon'], [/claude|gpt|opus/i, 'Opus'], [/gemini/i, 'Gemini']];
+const AGY_KIND = { '5h': '5h', weekly: 'week', monthly: 'month' };
+
+function runAgy(timeoutMs) {
+  return new Promise((resolve, reject) => {
+    // 不經過 shell：/usage 不會被 Git Bash 之類的轉成路徑；在暫存資料夾跑，免得在專案裡留下狀態
+    execFile('agy', ['-p', '/usage', '--output-format', 'json'], {
+      cwd: os.tmpdir(), timeout: timeoutMs, windowsHide: true, maxBuffer: 1 << 20,
+    }, (err, stdout, stderr) => {
+      if (err?.code === 'ENOENT') return reject(new QuotaError('未安裝', { detail: '找不到 agy（Antigravity CLI）' }));
+      if (err && !String(stdout).trim()) {
+        return reject(new QuotaError(err.killed ? '逾時' : '執行失敗', { detail: `agy：${String(stderr || err.message).trim().slice(0, 200)}` }));
+      }
+      resolve(String(stdout));
+    });
+  });
+}
+
+async function fetchAgy(cfg) {
+  const out = await runAgy(cfg.agyTimeoutMs);
+  let j;
+  try { j = JSON.parse(out.slice(out.indexOf('{'))); } catch { throw new QuotaError('格式不認得', { detail: 'agy /usage 的輸出不是 JSON' }); }
+  if (j.status !== 'SUCCESS') {
+    const msg = String(j.response ?? j.error ?? j.status ?? '').trim();
+    throw new QuotaError(/sign.?in|log.?in|auth|登入/i.test(msg) ? '未登入' : '錯誤', { detail: `agy：${msg.slice(0, 200) || '沒有回應'}` });
+  }
+  const groups = (j.command?.data?.groups ?? []).map((g) => {
+    const name = String(g.name ?? '');
+    const desc = String(g.description ?? '');
+    return {
+      name,
+      short: AGY_SHORT.find(([re]) => re.test(name))?.[1] ?? (name.split(/\s+/)[0] || '?'),
+      models: /^Models within this group:/i.test(desc) ? desc.replace(/^Models within this group:\s*/i, '') : '',
+      windows: (Array.isArray(g.buckets) ? g.buckets : []).map((b) => ({
+        kind: AGY_KIND[b.window] ?? String(b.window ?? '?'),
+        used: num(b.remaining_fraction) != null ? Math.round((1 - b.remaining_fraction) * 1000) / 10 : 0,
+        resetsAt: toMs(b.reset_time),
+      })).sort((a, b) => kindOrder(a) - kindOrder(b)),
+    };
+  }).filter((g) => g.windows.length);
+  if (!groups.length) throw new QuotaError('沒有資料', { detail: 'agy /usage 沒有回傳額度' });
+  // windows 攤平一份：「全部都重置過了」這類判斷照舊用
+  return { plan: null, groups, windows: groups.flatMap((g) => g.windows) };
+}
+
 // ---- 收集 ----
 
+// optional：這台沒裝那個 CLI 就整個不列（不顯示 ⚠️）
 const PROVIDERS = {
   claude: { label: 'Claude', fetch: fetchClaude, network: true },
   codex: { label: 'Codex', fetch: readCodex },
   grok: { label: 'Grok', fetch: fetchGrok, network: true, fallback: grokHudCache },
+  agy: { label: 'Antigravity', fetch: fetchAgy, network: true, optional: true },
 };
 
 async function collect(cfg, force) {
@@ -265,7 +322,7 @@ async function collect(cfg, force) {
     return { id, good, error: s.error, errorDetail: s.errorDetail };
   }));
   writeJsonAtomic(CACHE_FILE, cache);
-  return results;
+  return results.filter((r) => !(PROVIDERS[r.id].optional && r.error === '未安裝' && !r.good));
 }
 
 // ---- 顯示（仿 claude-hud）----
@@ -301,7 +358,7 @@ function renderProvider({ id, good, error, errorDetail }, cfg, paint, now, { nam
   }
   const name = tag(error ? `${label}*` : label);
   if (!good.windows.length) return `${name} —`;
-  const segs = good.windows.map((w) => {
+  const seg = (w) => {
     const kind = paint('2', LABEL[w.kind] ?? w.kind);
     const left = w.resetsAt ? w.resetsAt - now : null;
     if (left != null && left <= 0) return `${kind} ${paint('2', '(reset)')}`;
@@ -311,8 +368,14 @@ function renderProvider({ id, good, error, errorDetail }, cfg, paint, now, { nam
     const bar = paint(tone, '█'.repeat(filled)) + paint('2', '░'.repeat(BAR_WIDTH - filled));
     const reset = left != null ? ` (resets in ${fmtLeft(left)})` : '';
     return `${kind} ${bar} ${paint(tone, `${pct}%${reset}`)}`;
-  });
-  return `${name} ${segs.join(paint('2', ' | '))}`;
+  };
+  const join = (windows) => windows.map(seg).join(paint('2', ' | '));
+  // agy 這種分組的：一行內用 · 隔開；詳細表格一組一行，對齊在名稱後面
+  if (good.groups) {
+    const parts = good.groups.map((g) => `${paint('36', g.short)} ${join(g.windows)}`);
+    return `${name} ${parts.join(long ? '\n' + ' '.repeat(nameWidth + 1) : paint('2', ' · '))}`;
+  }
+  return `${name} ${join(good.windows)}`;
 }
 
 function renderLine(results, cfg, color, now = Date.now()) {
@@ -328,6 +391,8 @@ function renderDetail(results, cfg, color, now = Date.now()) {
     out.push(renderProvider(r, cfg, paint, now, { nameWidth, long: true }));
     const notes = [];
     if (r.good?.plan) notes.push(r.good.plan);
+    // 分組的短名稱各含哪些模型
+    for (const g of r.good?.groups ?? []) if (g.models) notes.push(`${g.short}＝${g.models}`);
     if (r.good?.asOf && now - r.good.asOf > 120_000) notes.push(`資料時間 ${fmtTime(r.good.asOf)}`);
     // 錯誤只顯示了一半（還有舊資料可看）時，補在下一行
     if (r.error && r.good && !allReset(r.good, now)) notes.push(r.errorDetail ?? r.error);
