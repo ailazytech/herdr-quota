@@ -9,8 +9,9 @@ A layout for the [herdr app](https://herdr.dev): the bottom status bar shows, at
 - **Weekly limit**: the brand logo followed by the percentage (yellow from 70 %, red from 90 %, plus the days until reset when it's nearly used up)
 - **5-hour limit** (Claude and Antigravity have one): a small bar with the percentage inside, followed by the time until it resets (no countdown while it's at 0 %)
 - **Antigravity** (agy) splits its limits into groups: after its logo, one segment per group — `Gemini` (Gemini Flash / Pro), `Opus` (Claude Opus, Sonnet, GPT-OSS) and `Argon` (Gemini 4 Argon, weekly only)
-- **Click** for a popup with a bar per limit, exact reset times, the plan and how fresh the data is, and a refresh button
-- With [tendr](https://github.com/ailazytech/tendr) installed, a "📋 tendr" button toggles the tendr board on the right, and Claude Code conversations come back automatically after a reboot
+- **Click** for a popup with a bar per limit, exact reset times, the plan and how fresh the data is, and a refresh button; "⚙ 設定" (settings) edits the look right in the app (see Settings)
+- **Arrange it yourself**: like claude-hud, pick a preset or use `layout` to choose which elements each provider shows, in what order
+- With [tendr](https://github.com/ailazytech/tendr) installed, a "tendr" button with a flame icon toggles the tendr board on the right (the flame is lit while the board shows), and Claude Code conversations come back automatically after a reboot
 
 ## Install
 
@@ -36,7 +37,7 @@ node tendr/app/install.mjs --layout quota-main
 
 tendr's installer records its location in `~/.tendr/install.json`. When the status bar finds it, it:
 
-- shows "📋 tendr" to toggle the board on the right
+- shows "tendr" with a flame icon to toggle the board on the right
 - runs tendr's `resume.mjs` after the app starts, bringing back the Claude conversations from before the reboot
 
 ## Where the data comes from
@@ -65,16 +66,57 @@ node ~/.config/herdr-app/mods/quota-status/quota.mjs detail   # table
 
 ## Settings
 
-In `~/.config/herdr-app/mods/quota-status/config.json` (create it; updates leave it alone):
+Click the quota in the status bar for the popup, then "⚙ 設定" (settings) to edit them right in the app (or `herdr-app do quota-status.settings`): quick buttons for the preset and the percentage on top, the JSON below. Saving checks the JSON first and applies it at once.
+
+Settings live in `~/.config/herdr-app/mods/quota-status/config.json`; updates leave it alone, and any editor works too (applied at the next refresh, within a minute). A wrong entry is listed in the popup and the settings window and falls back to its default, so the bar keeps working. `node quota.mjs config` prints the settings in effect.
+
+### The status bar's look (like claude-hud)
+
+`preset` picks a ready-made set:
+
+| preset | Each provider shows |
+| --- | --- |
+| `compact` (default) | logo, weekly %, weekly reset countdown (when nearly used up), 5-hour bar, 5-hour countdown |
+| `full` | adds the name and draws the weekly limit as a bar too |
+| `minimal` | logo, weekly %, 5-hour %, all as plain text |
+
+To arrange it yourself, write `layout`: elements in order, either as `default` (every provider) or for one provider (`claude`, `codex`, `grok`, `agy`); it overrides the preset.
+
+| Element | Shows |
+| --- | --- |
+| `logo` | brand icon |
+| `name` | name (Claude, Antigravity, …) |
+| `group` | group name (agy only: Gemini, Opus, Argon) |
+| `weekly` | weekly (or monthly) percentage |
+| `weekly.bar` | weekly limit as a small bar with the percentage inside |
+| `weekly.reset` | time until the weekly limit resets, e.g. `2d11h`; only from `weeklyResetAt` % used |
+| `5h` | 5-hour percentage |
+| `5h.bar` | 5-hour limit as a small bar |
+| `5h.reset` | time until the 5-hour limit resets (left out at 0 %) |
+| anything else | shown as is, e.g. `"|"`, `"W"` |
+
+agy's limits come in groups: `logo` and `name` appear once, every other element once per group.
+
+Example: only the 5-hour limit for Claude, and agy's weekly limits as bars:
 
 ```json
-{ "providers": ["claude", "codex"], "warnAt": 85 }
+{
+  "preset": "compact",
+  "layout": {
+    "claude": ["logo", "5h.bar", "5h.reset"],
+    "agy": ["logo", "group", "weekly.bar", "weekly.reset", "5h.bar"]
+  }
+}
 ```
+
+### Other settings
 
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `providers` | Which services to show, in order | `["claude", "codex", "grok", "agy"]` |
-| `warnAt` | Red from this percentage | `90` |
+| `percent` | `used` shows what's used, `left` what's left (colors always follow what's used) | `"used"` |
+| `cautionAt`, `warnAt` | Yellow and red from this much used | `70`, `90` |
+| `weeklyResetAt` | Show `weekly.reset` from this much used; one number for every provider, or per provider | `{ "default": 90, "agy": 0 }` (agy's groups reset at different times, so always) |
 | `ttlSec` | Cache seconds per service | `{ "claude": 300, "grok": 120, "agy": 180 }` |
 | `timeoutMs` | Network timeout | `8000` |
 | `agyTimeoutMs` | Timeout for `agy -p /usage` | `30000` |
@@ -84,6 +126,7 @@ In `~/.config/herdr-app/mods/quota-status/config.json` (create it; updates leave
 `herdr-app do quota-status.<command>`, or `quota-status:<command>` in `keys.json`:
 
 - `detail`: open the popup
+- `settings`: open the settings window
 - `refresh`: refetch now, ignoring the cache
 - `tendr`: toggle the tendr board on the right
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Claude / Codex / Grok / Antigravity（agy）的 5h、週額度與重置時間。讀各家 CLI 本機的登入資訊，只送到各自官方的用量 API；
 // agy 直接跑它自己的 `agy -p /usage`（不碰 token、不耗模型額度）。
-//   node quota.mjs json [--force]  原始結果（quota-status 狀態列讀這個）
+//   node quota.mjs json [--force]  原始結果與顯示設定（quota-status 狀態列讀這個）
+//   node quota.mjs config          目前生效的設定（設定視窗的起點）
 //   node quota.mjs line            一行文字
 //   node quota.mjs refresh         忽略快取重抓，印出一行
 //   node quota.mjs detail [--wait] 詳細表格；--wait 會等按鍵
@@ -17,10 +18,32 @@ const CACHE_FILE = path.join(process.env.LOCALAPPDATA ?? path.join(HOME, '.cache
 const CONFIG_FILE = process.env.HERDR_QUOTA_CONFIG ?? path.join(path.dirname(fileURLToPath(import.meta.url)), 'config.json');
 const GROK_HOME = process.env.GROK_HOME ?? path.join(HOME, '.grok');
 
+// 狀態列每一家的元素（仿 claude-hud 的 preset／elementOrder），layout 照順序放：
+//   logo 圖示、name 名稱、group 分組名（agy）、weekly 週額度 %、weekly.bar 週額度條、weekly.reset 週重置倒數
+//   （用到 weeklyResetAt % 才出現）、5h 五小時 %、5h.bar 五小時條、5h.reset 五小時倒數（0% 時不出現）；其他字照字面顯示
+// 分組的（agy）：logo、name 放一次，其餘每組各放一次
+const PRESETS = {
+  compact: ['logo', 'group', 'weekly', 'weekly.reset', '5h.bar', '5h.reset'],
+  full: ['logo', 'name', 'group', 'weekly.bar', 'weekly.reset', '5h.bar', '5h.reset'],
+  minimal: ['logo', 'group', 'weekly', '5h'],
+};
+const TOKENS = ['logo', 'name', 'group', 'weekly', 'weekly.bar', 'weekly.reset', '5h', '5h.bar', '5h.reset'];
+// 設定視窗裡給人改的鍵（node quota.mjs config 印的就是這些）
+const EDITABLE = ['providers', 'preset', 'layout', 'percent', 'warnAt', 'cautionAt', 'weeklyResetAt', 'ttlSec', 'timeoutMs', 'agyTimeoutMs'];
+
 const DEFAULTS = {
   // 沒裝 agy 的電腦不顯示它（見 PROVIDERS 的 optional）
   providers: ['claude', 'codex', 'grok', 'agy'],
+  preset: 'compact',
+  // { default: [...], agy: [...] }：寫了就蓋過 preset
+  layout: {},
+  // used 顯示用掉多少、left 顯示剩多少（顏色一律看用掉多少）
+  percent: 'used',
+  // 用掉幾 % 起變黃、變紅
+  cautionAt: 70,
   warnAt: 90,
+  // 週額度用掉幾 % 起顯示 weekly.reset；agy 的週額度各組重置時間不一樣，一直顯示
+  weeklyResetAt: { default: 90, agy: 0 },
   // usage API 有限流，claude-hud 也是 5 分鐘抓一次；agy 每次要起一個 CLI（約 5 秒），3 分鐘一次
   ttlSec: { claude: 300, grok: 120, agy: 180 },
   timeoutMs: 8000,
@@ -28,9 +51,82 @@ const DEFAULTS = {
   agyTimeoutMs: 30000,
 };
 
+// 設定寫錯不擋顯示：錯的那項用預設值，錯誤放在 configErrors（狀態列的小視窗與設定視窗會顯示）
 function loadConfig() {
-  const user = readJson(CONFIG_FILE) ?? {};
-  return { ...DEFAULTS, ...user, ttlSec: { ...DEFAULTS.ttlSec, ...user.ttlSec } };
+  const errors = [];
+  let user = {};
+  if (fs.existsSync(CONFIG_FILE)) {
+    try {
+      user = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    } catch (e) {
+      errors.push(`config.json 不是正確的 JSON：${e.message}`);
+    }
+    if (!user || typeof user !== 'object' || Array.isArray(user)) {
+      if (!errors.length) errors.push('config.json 要是一個 { … } 物件');
+      user = {};
+    }
+  }
+  const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+  const cfg = {
+    ...DEFAULTS,
+    ...user,
+    ttlSec: { ...DEFAULTS.ttlSec, ...(isObj(user.ttlSec) ? user.ttlSec : {}) },
+    // 寫一個數字＝每一家都一樣
+    weeklyResetAt: typeof user.weeklyResetAt === 'number' ? { default: user.weeklyResetAt } : { ...DEFAULTS.weeklyResetAt, ...(isObj(user.weeklyResetAt) ? user.weeklyResetAt : {}) },
+    layout: isObj(user.layout) ? { ...user.layout } : {},
+  };
+  if (!Array.isArray(cfg.providers) || !cfg.providers.every((id) => typeof id === 'string')) {
+    errors.push('providers 要是字串陣列，例如 ["claude", "agy"]');
+    cfg.providers = DEFAULTS.providers;
+  }
+  const unknown = cfg.providers.filter((id) => !PROVIDERS[id]);
+  if (unknown.length) errors.push(`providers 有不認得的：${unknown.join('、')}（可用 ${Object.keys(PROVIDERS).join('、')}）`);
+  if (!PRESETS[cfg.preset]) {
+    errors.push(`preset 只能是 ${Object.keys(PRESETS).join('、')}`);
+    cfg.preset = DEFAULTS.preset;
+  }
+  if (!['used', 'left'].includes(cfg.percent)) {
+    errors.push('percent 只能是 used（用掉）或 left（剩下）');
+    cfg.percent = DEFAULTS.percent;
+  }
+  for (const key of ['warnAt', 'cautionAt']) {
+    if (num(cfg[key]) == null || cfg[key] < 0 || cfg[key] > 100) {
+      errors.push(`${key} 要是 0～100 的數字`);
+      cfg[key] = DEFAULTS[key];
+    }
+  }
+  for (const [key, list] of Object.entries(cfg.layout)) {
+    if (!Array.isArray(list) || !list.every((x) => typeof x === 'string')) {
+      errors.push(`layout.${key} 要是字串陣列，例如 ["logo", "weekly", "5h.bar"]`);
+      delete cfg.layout[key];
+      continue;
+    }
+    if (key !== 'default' && !PROVIDERS[key]) errors.push(`layout.${key}：沒有這一家（可用 default、${Object.keys(PROVIDERS).join('、')}）`);
+    // 看起來像元素卻拼錯的（weekly.rest 之類）提醒一下；其他字照字面顯示是故意的
+    const typos = list.filter((x) => !TOKENS.includes(x) && /^(logo|name|group|weekly|5h)/i.test(x));
+    if (typos.length) errors.push(`layout.${key} 的 ${typos.join('、')} 不是元素，會照字面顯示（元素：${TOKENS.join('、')}）`);
+  }
+  cfg.configErrors = errors;
+  return cfg;
+}
+
+// 狀態列與小視窗要的顯示設定：每一家實際用的 layout 與週重置門檻
+function displayConfig(cfg) {
+  const providers = {};
+  for (const id of Object.keys(PROVIDERS)) {
+    providers[id] = {
+      layout: cfg.layout[id] ?? cfg.layout.default ?? PRESETS[cfg.preset],
+      weeklyResetAt: num(cfg.weeklyResetAt[id]) ?? num(cfg.weeklyResetAt.default) ?? 90,
+    };
+  }
+  return { percent: cfg.percent, warnAt: cfg.warnAt, cautionAt: cfg.cautionAt, providers, presets: PRESETS, tokens: TOKENS };
+}
+
+// 設定視窗打開時，還沒有 config.json 就用這份當起點
+function editableConfig(cfg) {
+  const out = {};
+  for (const key of EDITABLE) out[key] = cfg[key];
+  return out;
 }
 
 function readJson(file) {
@@ -363,11 +459,13 @@ function renderProvider({ id, good, error, errorDetail }, cfg, paint, now, { nam
     const left = w.resetsAt ? w.resetsAt - now : null;
     if (left != null && left <= 0) return `${kind} ${paint('2', '(reset)')}`;
     const pct = Math.round(w.used);
-    const tone = pct >= cfg.warnAt ? '31' : pct >= 70 ? '33' : '34';
-    const filled = Math.round(Math.min(100, Math.max(0, w.used)) / 100 * BAR_WIDTH);
+    // 顏色一律看用掉多少；percent: left 時數字與條改成剩下多少
+    const tone = pct >= cfg.warnAt ? '31' : pct >= cfg.cautionAt ? '33' : '34';
+    const shown = cfg.percent === 'left' ? 100 - pct : pct;
+    const filled = Math.round(Math.min(100, Math.max(0, shown)) / 100 * BAR_WIDTH);
     const bar = paint(tone, '█'.repeat(filled)) + paint('2', '░'.repeat(BAR_WIDTH - filled));
     const reset = left != null ? ` (resets in ${fmtLeft(left)})` : '';
-    return `${kind} ${bar} ${paint(tone, `${pct}%${reset}`)}`;
+    return `${kind} ${bar} ${paint(tone, `${shown}%${cfg.percent === 'left' ? ' left' : ''}${reset}`)}`;
   };
   const join = (windows) => windows.map(seg).join(paint('2', ' | '));
   // agy 這種分組的：一行內用 · 隔開；詳細表格一組一行，對齊在名稱後面
@@ -387,6 +485,7 @@ function renderDetail(results, cfg, color, now = Date.now()) {
   const paint = painter(color);
   const nameWidth = Math.max(...results.map((r) => PROVIDERS[r.id].label.length + 3));
   const out = [`${paint('1', 'AI 額度')}  ${paint('2', `${fmtTime(now)} 更新`)}`, ''];
+  for (const e of cfg.configErrors ?? []) out.splice(out.length - 1, 0, paint('33', `設定：${e}`));
   for (const r of results) {
     out.push(renderProvider(r, cfg, paint, now, { nameWidth, long: true }));
     const notes = [];
@@ -426,10 +525,17 @@ try {
   switch (cmd) {
     case 'line': console.log(renderLine(await collect(cfg, false), cfg, color)); break;
     case 'refresh': console.log(renderLine(await collect(cfg, true), cfg, color)); break;
-    case 'json': console.log(JSON.stringify(await collect(cfg, args.includes('--force')), null, 2)); break;
+    // 狀態列讀這個：results 是各家的額度，display 是照設定算好的顯示方式
+    case 'json': {
+      const results = await collect(cfg, args.includes('--force'));
+      console.log(JSON.stringify({ results, display: displayConfig(cfg), configErrors: cfg.configErrors }, null, 2));
+      break;
+    }
+    // 目前生效的設定（沒有 config.json 時就是預設值），設定視窗拿來當起點
+    case 'config': console.log(JSON.stringify({ config: editableConfig(cfg), file: CONFIG_FILE, exists: fs.existsSync(CONFIG_FILE), configErrors: cfg.configErrors }, null, 2)); break;
     case 'detail': await detail(cfg, args.includes('--wait'), color); break;
     default:
-      console.error('usage: node quota.mjs [line|refresh|detail [--wait]|json] [--color|--no-color]');
+      console.error('usage: node quota.mjs [line|refresh|detail [--wait]|json|config] [--color|--no-color]');
       process.exit(2);
   }
 } catch (e) {
