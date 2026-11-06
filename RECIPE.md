@@ -42,6 +42,8 @@ Herdr's default window (spaces and agents on the left, tabs on top, pane cards, 
 
 - **Layout `quota-main`:** `row#root` → `column#sidebar` [`block#brand` workspace-chrome, `column#sidebar-lists` [`block#spaces` spaces, `block#agents` agents], `block#sidebar-footer` workspace-chrome `{footer: true}`] and `column#work` [`block#tabs` tabs, `row#work-body` [`block#main` content `{tab: "active"}` with pane header mod `pane`, `column#panel` [`stack#panel-body` [files, changes, `block#tendr` tendr-board]]], `block#status` quota-status].
 - **Mod `quota-status`** (this repo): a copy of the shipped `workspace-status` plus the quota chips and popup. The same mod renders the popup when opened with `props().detail` and the settings window with `props().settings`. It uses `spaces`, `agents`, `theme`, `run`, `window`, `exec`, `shared`, `setShared`, `openOverlay`, `closeOverlay`, `nextCommand`, `props`, `layout`, `notify`, `home`, `appHome`, `readTextFile`, `writeTextFile`, `settings`, and `Editor` / `EditorState` from gpui-base. Its own icon: `flame.svg` (Lucide `flame`, ISC).
+- **Layout `quota-folders`:** `quota-main` with `block#spaces` showing the mod `herdr-folders`.
+- **Mod `herdr-folders`** (this repo): the folder tree in `tree.js` (no Herdr calls; `npm test` covers it), rows, dragging and overlays in `folders.js`, and `main.js`, a copy of the shipped `spaces`. The tree is stored in shared state under `herdr-folders`.
 - **Shipped mods:** workspace-chrome, spaces, agents, tabs, pane, files, changes. **Optional:** `tendr-board` from [ailazytech/tendr](https://github.com/ailazytech/tendr) (`app/`).
 - **Programs:** `node` runs `mods/quota-status/quota.mjs json` (and tendr's `resume.mjs` when installed); `quota.mjs` runs `agy -p /usage --output-format json` in the temp folder, without a shell.
 - **Network and files outside the mod folder:** `quota.mjs` reads `~/.claude/.credentials.json` (or `$CLAUDE_CONFIG_DIR`) and calls `https://api.anthropic.com/api/oauth/usage`; reads `~/.grok/auth.json` and calls `https://cli-chat-proxy.grok.com/v1/billing`; reads Codex's `~/.codex/sessions/**/rollout-*.jsonl` (no network). Each token goes only to its own provider. Antigravity's numbers come from agy's own `/usage` (its `command.data.groups[].buckets[]`: `window` `weekly` / `5h`, `remaining_fraction`, `reset_time`); no login files are read. It caches results in `%LOCALAPPDATA%/herdr-quota/cache.json` (`~/.cache/herdr-quota` elsewhere).
@@ -50,6 +52,8 @@ Herdr's default window (spaces and agents on the left, tabs on top, pane cards, 
 
 - A popup's props come from `props()`; the `init` argument doesn't carry them.
 - `herdr-app do <mod>.<command>` reaches shown copies only, and right after a layout switch the first command can be lost.
+- Copy a new mod's `mod.json` first: with the app open, a `main.js` that arrives first docks a default block into the shown layout.
+- `herdr-app check` can pass while a render fails on a missing name: after installing, look at `herdr-app shot`.
 - Popups close on any click outside them, including the person working elsewhere in the window.
 - Herdr's own layouts and mods are read-only (restored on every start): this is a clone, and so is the status mod.
 - The Claude usage endpoint is rate limited: keep the 5-minute cache. `quota.mjs` never refreshes OAuth tokens (that would steal the CLI's login); an expired token shows 🔑 until the CLI runs again.

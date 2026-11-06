@@ -1,0 +1,29 @@
+herdr-folders
+Copyright 2026 Chris Graham
+Released under the MIT License (see LICENSE).
+
+This product includes code from Herdr (https://github.com/herdrdev/herdr-app),
+the "spaces" mod, version 0.1.13 (defaults/mods/spaces), licensed under the
+Apache License 2.0 (see LICENSE-APACHE).
+
+Files changed from Herdr's spaces mod:
+  mods/herdr-folders/main.js   Changed: rows drawn as a folder tree, no
+                               "This computer" header, a New folder button,
+                               machine folding kept in the folder tree, drag
+                               and drop through the tree.
+  mods/herdr-folders/mod.json  Changed: the title is "Folders" and
+                               `cloned_from` was added.
+
+Files added, original to herdr-folders (MIT):
+  mods/herdr-folders/tree.js
+  mods/herdr-folders/folders.js
+  test/tree.test.js
+  package.json
+
+Changed for herdr-quota (https://github.com/ailazytech/herdr-quota):
+  mods/herdr-folders/main.js, folders.js, tree.js, test/tree.test.js
+                               Folders can hold spaces from several machines;
+                               emoji, pinning, sorting, per-agent marks, 主控
+                               and 副控 marks, a space menu, the narrow sidebar,
+                               and Chinese labels.
+  mods/herdr-folders/lead-spinner.svg  Added.

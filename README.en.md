@@ -22,9 +22,9 @@ git clone https://github.com/ailazytech/herdr-quota
 node herdr-quota/install.mjs --switch
 ```
 
-- Installs into `~/.config/herdr-app`: `layouts/quota-main.json` and `mods/quota-status/`
-- `--switch` checks the mod and switches to `quota-main`; `Ctrl+Shift+L` switches back
-- An existing `quota-main.json` is kept (you may have changed it); pass `--force` for the new one, the old one is backed up
+- Installs into `~/.config/herdr-app`: `layouts/quota-main.json`, `layouts/quota-folders.json`, `mods/quota-status/` and `mods/herdr-folders/`
+- `--switch` checks the mods and switches to `quota-main`, or to `quota-folders` (the folder sidebar) with `--folders`; `Ctrl+Shift+L` switches back
+- An existing layout of the same name is kept (you may have changed it); pass `--force` for the new one, the old one is backed up
 - Update: `git pull`, then run `node install.mjs` again (the mod is updated, the layout as above)
 
 ### With tendr (optional)
@@ -39,6 +39,28 @@ tendr's installer records its location in `~/.tendr/install.json`. When the stat
 
 - shows "tendr" with a flame icon to toggle the board on the right
 - runs tendr's `resume.mjs` after the app starts, bringing back the Claude conversations from before the reboot
+
+## Folder sidebar (optional)
+
+`quota-folders` is `quota-main` with the Spaces list on the left replaced by the `herdr-folders` mod:
+
+```bash
+node herdr-quota/install.mjs --switch --folders
+```
+
+- **Folders:** nest them, and put spaces from different machines in one folder; a folded folder shows its count and what's inside
+- **Icons:** a space shows its agent's icon and a folder a plain icon, and either can use an emoji
+- **Pinning:** click the pin on a hovered row, or drag a row into Pinned
+- **Status:** one mark per agent on the right, as in the Agents list
+- **Sorting:** a dropdown on the Spaces header (原始 manual, 資料夾日期 folder date, 啟用 agent active agents); it only changes the view
+- **主控 and 副控 (lead and second):** a space whose name or tab contains 主控 or 副控 is marked, or mark it from its right-click menu. Marked spaces get an outlined icon and a colored name while the rest step back a little, and a 主控 has its own spinner, so you can tell who's running
+- **Narrow sidebar:** each space shows its letter or emoji, with the most urgent status on the corner
+
+Keep in mind:
+
+- Folders only change the sidebar. `space.next` and the number shortcuts still follow the app's order
+- The mod is a copy of the shipped Spaces, so it won't pick up official changes to it
+- Folders live in this computer's app shared state and don't sync between machines
 
 ## Where the data comes from
 
@@ -130,9 +152,16 @@ Example: only the 5-hour limit for Claude, and agy's weekly limits as bars:
 - `refresh`: refetch now, ignoring the cache
 - `tendr`: toggle the tendr board on the right
 
+`herdr-app do herdr-folders.<command>`, or `herdr-folders:<command>` in `keys.json`, on the shown space:
+
+- `menu`: open the space's menu
+- `emoji`: change its emoji
+- `role-main`, `role-sub`, `role-none`: mark it 主控, 副控 or neither
+- `sort`: open the sort menu; `sort-manual`, `sort-date`, `sort-agents`: switch directly
+
 ## Uninstall
 
-Switch to another layout with `Ctrl+Shift+L`, then delete `~/.config/herdr-app/layouts/quota-main.json` and `~/.config/herdr-app/mods/quota-status/`.
+Switch to another layout with `Ctrl+Shift+L`, then delete `quota-main.json` and `quota-folders.json` from `~/.config/herdr-app/layouts/`, and `quota-status/` and `herdr-folders/` from `~/.config/herdr-app/mods/`.
 
 ## For agents
 
@@ -140,4 +169,4 @@ Switch to another layout with `Ctrl+Shift+L`, then delete `~/.config/herdr-app/l
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). `mods/herdr-folders` is adapted from [chrisggraham/herdr-folders](https://github.com/chrisggraham/herdr-folders) (MIT) and Herdr's shipped Spaces (Apache 2.0); see its [NOTICE](mods/herdr-folders/NOTICE).

@@ -22,9 +22,9 @@ git clone https://github.com/ailazytech/herdr-quota
 node herdr-quota/install.mjs --switch
 ```
 
-- 裝進 `~/.config/herdr-app`：`layouts/quota-main.json` 與 `mods/quota-status/`
-- `--switch` 會檢查 mod 並切到 `quota-main`；`Ctrl+Shift+L` 可以切回原本的 layout
-- 已經有 `quota-main.json` 的話不會蓋掉（你可能改過），要用新版加 `--force`，舊的會留備份
+- 裝進 `~/.config/herdr-app`：`layouts/quota-main.json`、`layouts/quota-folders.json`、`mods/quota-status/`、`mods/herdr-folders/`
+- `--switch` 會檢查 mod 並切到 `quota-main`，加 `--folders` 改切到有資料夾側欄的 `quota-folders`；`Ctrl+Shift+L` 可以切回原本的 layout
+- 已經有同名 layout 的話不會蓋掉（你可能改過），要用新版加 `--force`，舊的會留備份
 - 更新：`git pull` 後再跑一次 `node install.mjs`（mod 會更新，layout 照上一條）
 
 ### 搭配 tendr（選用）
@@ -39,6 +39,28 @@ tendr 的安裝會把自己的位置寫進 `~/.tendr/install.json`，狀態列�
 
 - 顯示火焰圖示的「tendr」，開關右側看板
 - App 開機後跑 tendr 的 `resume.mjs`，把重開機前的 Claude 對話接回來
+
+## 資料夾側欄（選用）
+
+`quota-folders` 跟 `quota-main` 一樣，只是把左側的 Spaces 換成 `herdr-folders` mod：
+
+```bash
+node herdr-quota/install.mjs --switch --folders
+```
+
+- **資料夾**：可以多層，不同機器的 space 也能放在同一個資料夾；收起來時顯示數量和裡面的狀態
+- **圖示**：space 預設顯示 agent 的圖案，資料夾預設一般圖示，都可以換成 emoji
+- **釘選**：滑過列時點圖釘，或把列拖進 Pinned 區
+- **狀態**：右邊每個 agent 一個標記，跟 Agents 清單一樣
+- **排序**：Spaces 標題列的下拉選單，有原始、資料夾日期、啟用 agent；只影響顯示，切回原始就還原
+- **主控與副控**：分頁或 space 名稱含「主控」「副控」會自動標記，也可以在 space 上按右鍵標。標記後圖示有外框、名稱換色，其他 space 略淡；主控的轉圈樣式跟別人不同，一眼看得出誰在跑
+- **窄側欄**：每個 space 顯示字母或 emoji，角落是最緊急的狀態
+
+注意：
+
+- 資料夾只影響側欄的顯示。`space.next` 和數字快捷鍵還是照 App 原本的順序
+- 這個 mod 是內建 Spaces 的複本，官方更新 Spaces 時不會自動跟上
+- 資料夾存在這台電腦的 App 共享狀態裡，不會跟著機器同步
 
 ## 資料從哪來
 
@@ -130,9 +152,16 @@ agy 的額度是分組的：`logo`、`name` 只放一次，其他元素每組各
 - `refresh`：不管快取，立刻重抓
 - `tendr`：開關右側的 tendr 看板
 
+`herdr-app do herdr-folders.<指令>`，或在 `keys.json` 綁 `herdr-folders:<指令>`，都是對目前顯示的 space：
+
+- `menu`：開 space 的選單
+- `emoji`：換 emoji
+- `role-main`、`role-sub`、`role-none`：標成主控、副控、不標記
+- `sort`：開排序選單；`sort-manual`、`sort-date`、`sort-agents`：直接切換
+
 ## 移除
 
-`Ctrl+Shift+L` 切回別的 layout，再刪掉 `~/.config/herdr-app/layouts/quota-main.json` 與 `~/.config/herdr-app/mods/quota-status/`。
+`Ctrl+Shift+L` 切回別的 layout，再刪掉 `~/.config/herdr-app/layouts/` 裡的 `quota-main.json`、`quota-folders.json`，以及 `~/.config/herdr-app/mods/` 裡的 `quota-status/`、`herdr-folders/`。
 
 ## 給 agent
 
@@ -140,4 +169,4 @@ agy 的額度是分組的：`logo`、`name` 只放一次，其他元素每組各
 
 ## 授權
 
-[MIT](LICENSE)
+[MIT](LICENSE)。`mods/herdr-folders` 改寫自 [chrisggraham/herdr-folders](https://github.com/chrisggraham/herdr-folders)（MIT）與 Herdr 內建的 Spaces（Apache 2.0），見該資料夾的 [NOTICE](mods/herdr-folders/NOTICE)。
