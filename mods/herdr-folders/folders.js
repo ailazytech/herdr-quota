@@ -8,7 +8,7 @@ import { run, spaces, agents, terminals, openOverlay, closeOverlay, theme, share
 import {
   ROOT, DEFAULT_ICON, emptyTree, kindOf, nameOf, machineAt, isFolded, canMove, move, slotNear,
   insertFolder, deleteFolder, updateFolder, setFolded, settle, rowsOf, isHex, spacesUnder,
-  cleanEmoji, emojiOf, setEmoji, PINNED, isPinned, pin, unpin, ranked, agentRole, agentScore, spaceRole, setRole, setRoleColor,
+  cleanEmoji, emojiOf, setEmoji, PINNED, isPinned, pin, unpin, ranked, agentRole, agentScore, spaceRole, setRole, setRoleColor, pathOf,
 } from "./tree.js";
 
 const MOD = "herdr-folders";
@@ -319,6 +319,15 @@ export class Folders {
 
   marksIn(key, t) {
     return this.marks(spacesUnder(this.tree, key), t);
+  }
+
+  // The 執行中 list: every space with an agent working or waiting on you, folded
+  // away or not, in the tree's order, each with the folders it sits in.
+  busy() {
+    const ids = new Set([...spacesUnder(this.tree, PINNED), ...spacesUnder(this.tree, ROOT)]);
+    return [...ids]
+      .filter((id) => (this.running[id] ?? []).some((a) => a.status === "working" || a.status === "blocked"))
+      .map((id) => ({ id, path: pathOf(this.tree, `space:${id}`) }));
   }
 
   togglePin(key) {

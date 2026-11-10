@@ -408,3 +408,17 @@ test("agentScore: one running agent beats any number finished", async () => {
   assert.equal(agentScore(many("working", 2)), 2 * agentScore(many("working", 1)));
   assert.equal(agentScore([]), 0);
 });
+
+test("pathOf: the folders a space sits in, outermost first; pinned goes by where it came from", async () => {
+  const { pathOf, pin } = await import("../mods/herdr-folders/tree.js");
+  const tree = sample();
+  assert.deepEqual(pathOf(tree, "space:l1"), []);
+  assert.deepEqual(pathOf(tree, "space:l2"), ["a"]);
+  assert.deepEqual(pathOf(tree, "space:dev/r1"), ["dev"]);
+  assert.deepEqual(pathOf(tree, "space:dev/r2"), ["dev", "m"]);
+  const deep = move(tree, "space:l1", "folder:b", 0);
+  assert.deepEqual(pathOf(deep, "space:l1"), ["a", "b"]);
+  assert.deepEqual(pathOf(pin(deep, "space:l1"), "space:l1"), ["a", "b"]);
+  // A pinned folder: what's in it goes by where the folder came from.
+  assert.deepEqual(pathOf(pin(deep, "folder:b"), "space:l1"), ["a", "b"]);
+});

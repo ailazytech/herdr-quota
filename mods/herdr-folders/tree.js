@@ -150,6 +150,22 @@ export function unpin(tree, key) {
   return { ...move(tree, key, back.ref, back.index), pinnedFrom };
 }
 
+// The names of the folders a key sits in, outermost first; a machine counts as
+// one. Something pinned goes by where it was pinned from.
+export function pathOf(tree, key) {
+  const up = (k) => {
+    const at = placeOf(tree, k);
+    return at === PINNED ? tree.pinnedFrom?.[k]?.ref ?? ROOT : at;
+  };
+  const names = [];
+  const seen = new Set();
+  for (let at = up(key); at !== ROOT && !seen.has(at); at = up(at)) {
+    seen.add(at);
+    names.unshift(kindOf(at) === "folder" ? tree.folders[nameOf(at)]?.name : nameOf(at));
+  }
+  return names.filter(Boolean);
+}
+
 // ---- folders ----
 
 // A new folder goes after the last folder in `ref`, else first.

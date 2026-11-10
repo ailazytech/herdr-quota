@@ -11,7 +11,8 @@
 // shows its count and what's waiting in it, folders and spaces can show an emoji
 // (the space's right-click menu, or the "emoji" command; a space shows its agent's
 // icon until then), rows show one mark per busy agent as the Agents list does, a
-// Pinned section sits on top, the list can be sorted without touching the tree,
+// Pinned section sits on top, under it 執行中 lists every space with an agent working
+// or waiting, with the folders it sits in, the list can be sorted without touching the tree,
 // the narrow sidebar shows each space's letter or emoji instead of numbers, a space
 // marked 主控 or 副控 (by its name or a tab's, or from its menu) gets an outlined icon
 // and a colored name while the rest step back, a 主控 has its own spinner, and a
@@ -414,27 +415,65 @@ export default class Spaces extends View {
       if (folded || !node.empty) return { rows: [shown], hidesChildren: false };
       return { rows: [shown, this.folders.indent(loading(m) ? loadingRow(m) : empty, node.depth + 1, collapsed)], hidesChildren: false };
     };
-    const out = [];
-    let hiddenBelow = null; // depth of a rebuilt machine whose spaces aren't shown
+    const drawNodes = (list) => {
+      const out = [];
+      let hiddenBelow = null; // depth of a rebuilt machine whose spaces aren't shown
+      for (const node of list) {
+        if (hiddenBelow !== null && node.depth > hiddenBelow) continue;
+        hiddenBelow = null;
+        if (node.kind === "folder") out.push(this.folders.wrap(this.folders.folderRow(node, t, collapsed), node, t, collapsed));
+        else if (node.kind === "space") out.push(this.folders.wrap(v_flex().children(groups[node.key].map(draw)), node, t, collapsed));
+        else {
+          const block = machineBlock(node);
+          out.push(...block.rows);
+          if (block.hidesChildren) hiddenBelow = node.depth;
+        }
+      }
+      return out;
+    };
+    const head = (label, count) => h_flex().h(24).flex_none().px(8).gap(5).items_center().text_size(11.5).text_color(t.dim).child(label).child(String(count));
+    // The pinned rows come first; the tree starts at the first top-level row outside them.
+    const start = nodes.findIndex((n) => n.depth === 0 && n.parent !== PINNED);
+    const split = start < 0 ? nodes.length : start;
     const pinCount = nodes.filter((n) => n.parent === PINNED).length;
-    if (pinCount && !collapsed) out.push(h_flex().h(24).flex_none().px(8).gap(5).items_center().text_size(11.5).text_color(t.dim).child("Pinned").child(String(pinCount)));
-    let inPinned = pinCount > 0;
-    for (const node of nodes) {
-      if (inPinned && node.depth === 0 && node.parent !== PINNED) {
-        inPinned = false;
-        out.push(div().h(1).flex_none().mx(8).my(6).bg(t.border));
-      }
-      if (hiddenBelow !== null && node.depth > hiddenBelow) continue;
-      hiddenBelow = null;
-      if (node.kind === "folder") out.push(this.folders.wrap(this.folders.folderRow(node, t, collapsed), node, t, collapsed));
-      else if (node.kind === "space") out.push(this.folders.wrap(v_flex().children(groups[node.key].map(draw)), node, t, collapsed));
-      else {
-        const block = machineBlock(node);
-        out.push(...block.rows);
-        if (block.hidesChildren) hiddenBelow = node.depth;
-      }
+    const pinned = drawNodes(nodes.slice(0, split));
+    if (pinCount && !collapsed) pinned.unshift(head("Pinned", pinCount));
+    // 執行中: what's running anywhere, folded away or not. The narrow sidebar has its corners instead.
+    const byId = new Map(spaces().map((s) => [s.id, s]));
+    const busy = collapsed ? [] : this.folders.busy().filter(({ id }) => byId.has(id));
+    const running = busy.length ? [head("執行中", busy.length), ...busy.map(({ id, path }) => this.busyRow(byId.get(id), path, t))] : [];
+    const out = [];
+    for (const rows of [pinned, running, drawNodes(nodes.slice(split))].filter((rows) => rows.length)) {
+      if (out.length) out.push(div().h(1).flex_none().mx(8).my(6).bg(t.border));
+      out.push(...rows);
     }
     return out;
+  }
+
+  // A row of 執行中: the folders it sits in, small and dim, then its name. Both on
+  // one line when they fit, else the name goes under.
+  busyRow(w, path, t) {
+    const color = (shared("space.colors") ?? {})[w.id] ?? "ansi6";
+    const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
+    const marks = this.folders.marks([w.id], t);
+    return h_flex()
+      .id(`busy-${w.id}`)
+      .flex_none()
+      .min_h(28)
+      .px(8)
+      .py(4)
+      .gap(9)
+      .items_center()
+      .rounded(8)
+      .when(w.active, (el) => el.bg(t.selected))
+      .when(!w.active, (el) => el.hover((s) => s.bg(t.hover)))
+      .on_click(() => run("space.select", { id: w.id }))
+      .on_mouse_down("right", () => this.menu(w))
+      .child(this.folders.spaceTile(w, fill, t))
+      .child(h_flex().flex_1().min_w(0).flex_wrap().items_center().gap_x(6)
+        .when(path.length > 0, (el) => el.child(div().min_w(0).truncate().text_size(11).text_color(t.dim).child(path.join(" › "))))
+        .child(named(div().min_w(0).truncate().text_color(t.foreground), this.folders.roles[w.id], t).child(w.name)))
+      .when(Boolean(marks), (el) => el.child(marks));
   }
 
   // Only what's unusual, after the name: "herdr \u00b7 spike \u21912 \u21931". The repo or

@@ -51,6 +51,7 @@ node herdr-quota/install.mjs --switch --folders
 - **Folders:** nest them, and put spaces from different machines in one folder; a folded folder shows its count and what's inside
 - **Icons:** a space shows its agent's icon and a folder a plain icon, and either can use an emoji
 - **Pinning:** click the pin on a hovered row, or drag a row into Pinned
+- **Running (執行中):** under Pinned, every space with an agent working or waiting on you, folded folders included, with the folders it sits in as small dim text before its name; the name moves to a second line when both don't fit
 - **Status:** one mark per agent on the right, as in the Agents list
 - **Sorting:** a dropdown on the Spaces header (原始 manual, 資料夾日期 folder date, 啟用 agent active agents); it only changes the view
 - **主控 and 副控 (lead and second):** a space whose name or tab contains 主控 or 副控 is marked, or mark it from its right-click menu. Marked spaces get an outlined icon and a colored name while the rest step back a little, and a 主控 has its own spinner, so you can tell who's running
