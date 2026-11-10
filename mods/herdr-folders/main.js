@@ -11,8 +11,9 @@
 // shows its count and what's waiting in it, folders and spaces can show an emoji
 // (the space's right-click menu, or the "emoji" command; a space shows its agent's
 // icon until then), rows show one mark per busy agent as the Agents list does, a
-// Pinned section sits on top, under it 執行中 lists every space with an agent working
-// or waiting, with the folders it sits in, the list can be sorted without touching the tree,
+// Pinned section sits on top, under it 執行與待觀看 lists every space with an agent
+// working, waiting or done, with the folders it sits in (a click there goes to a finished agent
+// first), both stay put while the tree under them scrolls, the list can be sorted without touching the tree,
 // the narrow sidebar shows each space's letter or emoji instead of numbers, a space
 // marked 主控 or 副控 (by its name or a tab's, or from its menu) gets an outlined icon
 // and a colored name while the rest step back, a 主控 has its own spinner, and a
@@ -25,7 +26,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, run, exec, hc, theme, shared, setShared, watchFolder, window, layout, props, nextCommand } from "herdr";
+import { spaces, agents, machines, panes, run, exec, hc, theme, shared, setShared, watchFolder, window, layout, props, nextCommand } from "herdr";
 import { Folders, overlayFor, openEmoji, openSortMenu, openSpaceMenu, markSpace, setSort, FADE, named } from "./folders.js";
 import { nameOf, PINNED } from "./tree.js";
 
@@ -376,7 +377,7 @@ export default class Spaces extends View {
     const ps = panes();
     this.folders.dates = Object.fromEntries(rows.map((r) => [r.w.id, r.g?.date || this.stamps[where(r.w, ps)] || 0]));
     const nodes = this.folders.nodes({ spaces: tops, machines: remote });
-    if (!nodes.length) return loading(null) ? [loadingRow(null)] : [];
+    if (!nodes.length) return { top: [], rest: loading(null) ? [loadingRow(null)] : [] };
     // A machine's header and, unless it's folded, a row to start a space when it has nothing.
     const machineBlock = (node) => {
       const m = nameOf(node.key);
@@ -438,21 +439,24 @@ export default class Spaces extends View {
     const pinCount = nodes.filter((n) => n.parent === PINNED).length;
     const pinned = drawNodes(nodes.slice(0, split));
     if (pinCount && !collapsed) pinned.unshift(head("Pinned", pinCount));
-    // 執行中: what's running anywhere, folded away or not. The narrow sidebar has its corners instead.
+    // 執行與待觀看: what's running or done anywhere, folded away or not. The narrow sidebar has its corners instead.
     const byId = new Map(spaces().map((s) => [s.id, s]));
     const busy = collapsed ? [] : this.folders.busy().filter(({ id }) => byId.has(id));
-    const running = busy.length ? [head("執行中", busy.length), ...busy.map(({ id, path }) => this.busyRow(byId.get(id), path, t))] : [];
-    const out = [];
-    for (const rows of [pinned, running, drawNodes(nodes.slice(split))].filter((rows) => rows.length)) {
-      if (out.length) out.push(div().h(1).flex_none().mx(8).my(6).bg(t.border));
-      out.push(...rows);
-    }
-    return out;
+    const running = busy.length ? [head("執行與待觀看", busy.length), ...busy.map(({ id, path }) => this.busyRow(byId.get(id), path, t))] : [];
+    const top = [pinned, running].filter((rows) => rows.length)
+      .flatMap((rows, i) => (i ? [div().h(1).flex_none().mx(8).my(6).bg(t.border), ...rows] : rows));
+    return { top, rest: drawNodes(nodes.slice(split)) };
   }
 
-  // A row of 執行中: the folders it sits in, small and dim, then its name. Both on
-  // one line when they fit, else the name goes under.
+  // A row of 執行與待觀看: the folders it sits in, small and dim, then its name. Both on
+  // one line when they fit, else the name goes under. A click goes to the agent there
+  // that finished last ("done": you haven't looked yet), else to the space.
   busyRow(w, path, t) {
+    const go = () => {
+      const done = agents().filter((a) => a.space === w.id && a.status === "done").sort((a, b) => b.seq - a.seq)[0];
+      if (done) run("pane.focus", { pane: done.pane });
+      else run("space.select", { id: w.id });
+    };
     const color = (shared("space.colors") ?? {})[w.id] ?? "ansi6";
     const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
     const marks = this.folders.marks([w.id], t);
@@ -467,7 +471,7 @@ export default class Spaces extends View {
       .rounded(8)
       .when(w.active, (el) => el.bg(t.selected))
       .when(!w.active, (el) => el.hover((s) => s.bg(t.hover)))
-      .on_click(() => run("space.select", { id: w.id }))
+      .on_click(go)
       .on_mouse_down("right", () => this.menu(w))
       .child(this.folders.spaceTile(w, fill, t))
       .child(h_flex().flex_1().min_w(0).flex_wrap().items_center().gap_x(6)
@@ -573,17 +577,21 @@ export default class Spaces extends View {
       changed = true;
     }
     if (changed) setShared("space.colors", kept);
-    return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
+    const { top, rest } = this.grouped(t, collapsed);
+    return v_flex().id("spaces").size_full().min_h(0).bg(t.chrome).text_size(13)
+      // Here, not on the tree: a drag may go from the tree up into Pinned.
+      .on_mouse_up("left", (_e, cx) => { this.folders.cancel(); cx.notify(); })
+      // gpui-kit has no "mouse up outside" handler, so leaving the sidebar ends the drag.
+      .on_hover((hovered, cx) => { if (!hovered) { this.folders.cancel(); cx.notify(); } })
       .child(h_flex().h(31).pl(collapsed ? 9 : 16).pr(collapsed ? 9 : 10).items_center().justify_between().text_size(11.5).text_color(t.dim)
         .when(!collapsed, el => el.child("Spaces"))
         .child(h_flex().items_center()
           .when(!collapsed, el => el.child(this.folders.sortButton(t)).child(this.folders.newFolderButton(t)))
           .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).hover(s => s.bg(t.hover).text_color(t.foreground))
             .on_click(() => run("space.new")).child(svg("mods/workspace-chrome/plus.svg").size(14)))))
-      .child(v_flex().flex_1().min_h(0).px(8).pb(14).overflow_y_scrollbar().mode("always")
-        .on_mouse_up("left", (_e, cx) => { this.folders.cancel(); cx.notify(); })
-        // gpui-kit has no "mouse up outside" handler, so leaving the list ends the drag.
-        .on_hover((hovered, cx) => { if (!hovered) { this.folders.cancel(); cx.notify(); } })
-        .children(this.grouped(t, collapsed)));
+      // Pinned and 執行與待觀看 stay put and only the tree scrolls; capped, so the tree keeps room.
+      .when(top.length > 0, (el) => el.child(v_flex().id("spaces-top").flex_none().max_h("55%").px(8).overflow_y_scroll().children(top))
+        .when(rest.length > 0, (el) => el.child(div().h(1).flex_none().mx(16).my(6).bg(t.border))))
+      .child(v_flex().id("spaces-tree").flex_1().min_h(0).px(8).pb(14).overflow_y_scrollbar().mode("always").children(rest));
   }
 }

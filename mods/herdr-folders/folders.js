@@ -321,12 +321,13 @@ export class Folders {
     return this.marks(spacesUnder(this.tree, key), t);
   }
 
-  // The 執行中 list: every space with an agent working or waiting on you, folded
-  // away or not, in the tree's order, each with the folders it sits in.
+  // The 執行與待觀看 list: every space with an agent working, waiting on you, or done
+  // and not looked at yet, folded away or not, in the tree's order, each with the
+  // folders it sits in.
   busy() {
     const ids = new Set([...spacesUnder(this.tree, PINNED), ...spacesUnder(this.tree, ROOT)]);
     return [...ids]
-      .filter((id) => (this.running[id] ?? []).some((a) => a.status === "working" || a.status === "blocked"))
+      .filter((id) => (this.running[id] ?? []).some((a) => MARK_ORDER.includes(a.status)))
       .map((id) => ({ id, path: pathOf(this.tree, `space:${id}`) }));
   }
 
