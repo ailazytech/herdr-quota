@@ -22,9 +22,10 @@ git clone https://github.com/ailazytech/herdr-quota
 node herdr-quota/install.mjs --switch
 ```
 
-- Installs into `~/.config/herdr-app`: `layouts/quota-main.json`, `layouts/quota-folders.json`, `mods/quota-status/` and `mods/herdr-folders/`
+- Installs into `~/.config/herdr-app`: `layouts/quota-main.json`, `layouts/quota-folders.json`, `mods/quota-status/`, `mods/herdr-folders/` and `mods/pane-address/`
 - `--switch` checks the mods and switches to `quota-main`, or to `quota-folders` (the folder sidebar) with `--folders`; `Ctrl+Shift+L` switches back
-- An existing layout of the same name is kept (you may have changed it); pass `--force` for the new one, the old one is backed up
+- An existing layout of the same name is kept (you may have changed it); pass `--force` for the new one, the old one is backed up. Only a pane header still on the shipped `pane` is switched to `pane-address` (also backed up)
+- **Addresses in pane headers:** in both layouts every pane header shows its terminal address (such as `t16`) after the name, for agents and shells alike; a click copies it, for handing to another agent (`hc read t16`)
 - Update: `git pull`, then run `node install.mjs` again (the mod is updated, the layout as above)
 
 ### With tendr (optional)
@@ -52,7 +53,7 @@ node herdr-quota/install.mjs --switch --folders
 - **Icons:** a space shows its agent's icon and a folder a plain icon, and either can use an emoji
 - **Pinning:** click the pin on a hovered row, or drag a row into Pinned
 - **Running and to look at (執行與待觀看):** under Pinned, every space with an agent working, waiting on you, or done and not looked at yet, folded folders included, with the folders it sits in as small dim text before its name; the name moves to a second line when both don't fit. A click goes straight to an agent there that's done, if any. Pinned and this list stay put; only the folder tree scrolls
-- **Addresses:** after a space's name, its first agent's terminal address (such as `t16`); a click copies it, for handing to another agent (`hc read t16`). The top of the right-click menu lists every agent's address in the space to copy
+- **Addresses:** while the pointer is on a space's row, its first agent's terminal address (such as `t16`) shows after the name; a click copies it. The top of the right-click menu lists every agent's address in the space to copy. Each pane's own address is in its header
 - **Status:** one mark per agent on the right, as in the Agents list
 - **Sorting:** a dropdown on the Spaces header (原始 manual, 資料夾日期 folder date, 啟用 agent active agents); it only changes the view
 - **主控 and 副控 (lead and second):** a space whose name or tab contains 主控 or 副控 is marked, or mark it from its right-click menu. Marked spaces get an outlined icon and a colored name while the rest step back a little, and a 主控 has its own spinner, so you can tell who's running
@@ -163,7 +164,7 @@ Example: only the 5-hour limit for Claude, and agy's weekly limits as bars:
 
 ## Uninstall
 
-Switch to another layout with `Ctrl+Shift+L`, then delete `quota-main.json` and `quota-folders.json` from `~/.config/herdr-app/layouts/`, and `quota-status/` and `herdr-folders/` from `~/.config/herdr-app/mods/`.
+Switch to another layout with `Ctrl+Shift+L`, then delete `quota-main.json` and `quota-folders.json` from `~/.config/herdr-app/layouts/`, and `quota-status/`, `herdr-folders/` and `pane-address/` from `~/.config/herdr-app/mods/`.
 
 ## For agents
 
@@ -171,4 +172,4 @@ Switch to another layout with `Ctrl+Shift+L`, then delete `quota-main.json` and 
 
 ## License
 
-[MIT](LICENSE). `mods/herdr-folders` is adapted from [chrisggraham/herdr-folders](https://github.com/chrisggraham/herdr-folders) (MIT) and Herdr's shipped Spaces (Apache 2.0); see its [NOTICE](mods/herdr-folders/NOTICE).
+[MIT](LICENSE). `mods/herdr-folders` is adapted from [chrisggraham/herdr-folders](https://github.com/chrisggraham/herdr-folders) (MIT) and Herdr's shipped Spaces (Apache 2.0); see its [NOTICE](mods/herdr-folders/NOTICE). `mods/pane-address` is adapted from Herdr's shipped pane header (Apache 2.0); see its [NOTICE](mods/pane-address/NOTICE).

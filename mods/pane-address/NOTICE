@@ -1,0 +1,11 @@
+pane-address
+Part of herdr-quota (https://github.com/ailazytech/herdr-quota).
+
+This product includes code from Herdr (https://github.com/herdrdev/herdr-app),
+the "pane" mod, version 0.1.15 (defaults/mods/pane), with its icons, licensed
+under the Apache License 2.0 (see LICENSE-APACHE).
+
+Files changed from Herdr's pane mod:
+  mods/pane-address/main.js   Changed: after the name, the pane's terminal
+                              address, which a click copies to the clipboard.
+  mods/pane-address/mod.json  Changed: `cloned_from` was added.

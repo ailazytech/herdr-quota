@@ -22,9 +22,10 @@ git clone https://github.com/ailazytech/herdr-quota
 node herdr-quota/install.mjs --switch
 ```
 
-- 裝進 `~/.config/herdr-app`：`layouts/quota-main.json`、`layouts/quota-folders.json`、`mods/quota-status/`、`mods/herdr-folders/`
+- 裝進 `~/.config/herdr-app`：`layouts/quota-main.json`、`layouts/quota-folders.json`、`mods/quota-status/`、`mods/herdr-folders/`、`mods/pane-address/`
 - `--switch` 會檢查 mod 並切到 `quota-main`，加 `--folders` 改切到有資料夾側欄的 `quota-folders`；`Ctrl+Shift+L` 可以切回原本的 layout
-- 已經有同名 layout 的話不會蓋掉（你可能改過），要用新版加 `--force`，舊的會留備份
+- 已經有同名 layout 的話不會蓋掉（你可能改過），要用新版加 `--force`，舊的會留備份；只有 pane 標題列還是內建的 `pane` 時，會換成 `pane-address`（同樣留備份）
+- **pane 標題列的位址**：兩個 layout 的每個 pane 標題列都在名稱後面顯示它的終端機位址（例如 `t16`），agent 和一般 shell 都有；點一下複製，方便貼給別的 agent（`hc read t16`）
 - 更新：`git pull` 後再跑一次 `node install.mjs`（mod 會更新，layout 照上一條）
 
 ### 搭配 tendr（選用）
@@ -52,7 +53,7 @@ node herdr-quota/install.mjs --switch --folders
 - **圖示**：space 預設顯示 agent 的圖案，資料夾預設一般圖示，都可以換成 emoji
 - **釘選**：滑過列時點圖釘，或把列拖進 Pinned 區
 - **執行與待觀看**：釘選區下面列出所有有 agent 在跑、在等你，或已經 done 還沒看的 space，收起來的資料夾裡的也算；名稱前面用淺色小字標它在哪個資料夾，放不下時名稱換到下一行。點下去時，裡面有 agent 已經 done 就直接跳到那個 agent。釘選和這一區固定在上面，只有資料夾樹會捲動
-- **位址**：space 名稱後面顯示它第一個 agent 的終端機位址（例如 `t16`），點一下複製，方便貼給別的 agent（`hc read t16`）；右鍵選單最上面列出這個 space 所有 agent 的位址，點了就複製
+- **位址**：滑鼠移到 space 那一列時，名稱後面顯示它第一個 agent 的終端機位址（例如 `t16`），點一下複製；右鍵選單最上面列出這個 space 所有 agent 的位址，點了就複製。每個 pane 自己的位址在 pane 標題列
 - **狀態**：右邊每個 agent 一個標記，跟 Agents 清單一樣
 - **排序**：Spaces 標題列的下拉選單，有原始、資料夾日期、啟用 agent；只影響顯示，切回原始就還原
 - **主控與副控**：分頁或 space 名稱含「主控」「副控」會自動標記，也可以在 space 上按右鍵標。標記後圖示有外框、名稱換色，其他 space 略淡；主控的轉圈樣式跟別人不同，一眼看得出誰在跑
@@ -163,7 +164,7 @@ agy 的額度是分組的：`logo`、`name` 只放一次，其他元素每組各
 
 ## 移除
 
-`Ctrl+Shift+L` 切回別的 layout，再刪掉 `~/.config/herdr-app/layouts/` 裡的 `quota-main.json`、`quota-folders.json`，以及 `~/.config/herdr-app/mods/` 裡的 `quota-status/`、`herdr-folders/`。
+`Ctrl+Shift+L` 切回別的 layout，再刪掉 `~/.config/herdr-app/layouts/` 裡的 `quota-main.json`、`quota-folders.json`，以及 `~/.config/herdr-app/mods/` 裡的 `quota-status/`、`herdr-folders/`、`pane-address/`。
 
 ## 給 agent
 
@@ -171,4 +172,4 @@ agy 的額度是分組的：`logo`、`name` 只放一次，其他元素每組各
 
 ## 授權
 
-[MIT](LICENSE)。`mods/herdr-folders` 改寫自 [chrisggraham/herdr-folders](https://github.com/chrisggraham/herdr-folders)（MIT）與 Herdr 內建的 Spaces（Apache 2.0），見該資料夾的 [NOTICE](mods/herdr-folders/NOTICE)。
+[MIT](LICENSE)。`mods/herdr-folders` 改寫自 [chrisggraham/herdr-folders](https://github.com/chrisggraham/herdr-folders)（MIT）與 Herdr 內建的 Spaces（Apache 2.0），見該資料夾的 [NOTICE](mods/herdr-folders/NOTICE)。`mods/pane-address` 改寫自 Herdr 內建的 pane 標題列（Apache 2.0），見 [NOTICE](mods/pane-address/NOTICE)。

@@ -17,7 +17,7 @@
 // the narrow sidebar shows each space's letter or emoji instead of numbers, a space
 // marked 主控 or 副控 (by its name or a tab's, or from its menu) gets an outlined icon
 // and a colored name while the rest step back, a 主控 has its own spinner, a space's
-// name is followed by its first agent's address (a click copies it), and a
+// name is followed, while the pointer is on its row, by its first agent's address (a click copies it), and a
 // space's right click opens this mod's menu, which lists every agent's address to copy.
 //
 // Workspace spaces: stable colored avatars, worktrees under their checkout,
@@ -461,9 +461,10 @@ export default class Spaces extends View {
     const color = (shared("space.colors") ?? {})[w.id] ?? "ansi6";
     const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
     const marks = this.folders.marks([w.id], t);
-    const address = this.folders.addressChip(w.id, t);
+    const address = this.folders.addressChip(w.id, t, `busy:${w.id}`);
     return h_flex()
       .id(`busy-${w.id}`)
+      .on_hover((on, cx) => this.folders.hoverRow(`busy:${w.id}`, on, cx))
       .flex_none()
       .min_h(28)
       .px(8)

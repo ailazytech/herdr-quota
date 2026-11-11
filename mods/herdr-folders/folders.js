@@ -221,15 +221,16 @@ export class Folders {
     this.dragged = null; // the key under the pointer since the press
     this.drop = null; // { ref, index, over, side } where a release would put it
     this.addresses = {}; // space id -> its agents' { address, name }, the row's first
-    this.copied = null; // the address just copied, shown as 已複製 for a moment
+    this.copied = null; // the row whose address was just copied: it says 已複製 for a moment
   }
 
-  // After a space's name: its first agent's address (t16), small and monospace, to hand
-  // to another agent (`hc read t16`). A click copies it and says so for a moment.
-  addressChip(id, t) {
+  // After a space's name, while the pointer is on its row (`key`): its first agent's
+  // address (t16), small and monospace, to hand to another agent (`hc read t16`). A
+  // click copies it and says so for a moment. Every pane's header shows its own.
+  addressChip(id, t, key = `space:${id}`) {
     const address = this.addresses[id]?.[0]?.address;
-    if (!address) return null;
-    const copied = this.copied === address;
+    const copied = Boolean(address) && this.copied === key;
+    if (!address || (this.hovered !== key && !copied)) return null;
     return div().id(`space-address-${id}`).flex_none().h(17).px(4).flex().items_center().rounded(4)
       .border_1().border_color(t.border).font_family("JetBrains Mono").text_size(10.5)
       .text_color(copied ? t.done : t.dim)
@@ -238,7 +239,7 @@ export class Folders {
       .on_click((_e, cx) => {
         cx.stop_propagation();
         cx.write_to_clipboard(address);
-        this.copied = address;
+        this.copied = key;
         cx.notify();
         this.uncopy?.cancel();
         this.uncopy = cx.timer.after(1500, (cx) => { this.copied = null; cx.notify(); });
