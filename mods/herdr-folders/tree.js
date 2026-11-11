@@ -258,6 +258,19 @@ export function agentRole(agent, role, tabs) {
   return roleOf([agent.tab_name]) ?? (roleOf(tabs) ? null : role);
 }
 
+// Each space's agents as { address, name }, for handing an address to another agent:
+// the ones no terminal started come first (in the order given), then those another
+// terminal started (`children`, a Set of addresses). A row shows the first.
+export function addressesBySpace(list, children) {
+  const out = {};
+  for (const a of list) (out[a.space] ??= []).push(a);
+  const entry = (a) => ({ address: a.address, name: a.tab_name || a.program?.name || a.title || "" });
+  for (const [space, all] of Object.entries(out)) {
+    out[space] = [...all.filter((a) => !children.has(a.address)), ...all.filter((a) => children.has(a.address))].map(entry);
+  }
+  return out;
+}
+
 // ---- emoji ----
 
 // What someone typed, as a label: trimmed and short, null when empty.

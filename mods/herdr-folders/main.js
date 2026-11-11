@@ -16,8 +16,9 @@
 // first), both stay put while the tree under them scrolls, the list can be sorted without touching the tree,
 // the narrow sidebar shows each space's letter or emoji instead of numbers, a space
 // marked 主控 or 副控 (by its name or a tab's, or from its menu) gets an outlined icon
-// and a colored name while the rest step back, a 主控 has its own spinner, and a
-// space's right click opens this mod's menu.
+// and a colored name while the rest step back, a 主控 has its own spinner, a space's
+// name is followed by its first agent's address (a click copies it), and a
+// space's right click opens this mod's menu, which lists every agent's address to copy.
 //
 // Workspace spaces: stable colored avatars, worktrees under their checkout,
 // grouped by machine when more than one is known. After a space's name, the repo
@@ -460,6 +461,7 @@ export default class Spaces extends View {
     const color = (shared("space.colors") ?? {})[w.id] ?? "ansi6";
     const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
     const marks = this.folders.marks([w.id], t);
+    const address = this.folders.addressChip(w.id, t);
     return h_flex()
       .id(`busy-${w.id}`)
       .flex_none()
@@ -477,6 +479,7 @@ export default class Spaces extends View {
       .child(h_flex().flex_1().min_w(0).flex_wrap().items_center().gap_x(6)
         .when(path.length > 0, (el) => el.child(div().min_w(0).truncate().text_size(11).text_color(t.dim).child(path.join(" › "))))
         .child(named(div().min_w(0).truncate().text_color(t.foreground), this.folders.roles[w.id], t).child(w.name)))
+      .when(Boolean(address), (el) => el.child(address))
       .when(Boolean(marks), (el) => el.child(marks));
   }
 
@@ -508,6 +511,7 @@ export default class Spaces extends View {
     const color = colors[w.id] ?? "ansi6";
     const fill = color.startsWith("#") ? color : (MARK[color] ?? t[color]);
     const marks = this.folders.marks([w.id], t);
+    const address = this.folders.addressChip(w.id, t);
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
@@ -529,7 +533,9 @@ export default class Spaces extends View {
             .when(this.folders.faded(w), el => el.opacity(FADE))
             .when(Boolean(tree), el => el.pl(22).child(svg("mods/workspace-chrome/branch.svg").size(13).text_color(t.dim)))
             .when(!tree, el => el.child(this.folders.spaceTile(w, fill, t)))
-            .child(named(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground), this.folders.roles[w.id], t).child(w.name))
+            .child(h_flex().flex_shrink(0).gap(5).items_center()
+              .child(named(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground), this.folders.roles[w.id], t).child(w.name))
+              .when(Boolean(address), el => el.child(address)))
             .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())
             .when(this.folders.away(w), el => el.child(h_flex().flex_none().gap(3).items_center().text_size(10.5).text_color(t.dim)
               .child(svg("mods/workspace-chrome/server.svg").size(11)).child(w.machine))))

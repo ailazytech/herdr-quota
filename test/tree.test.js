@@ -422,3 +422,20 @@ test("pathOf: the folders a space sits in, outermost first; pinned goes by where
   // A pinned folder: what's in it goes by where the folder came from.
   assert.deepEqual(pathOf(pin(deep, "folder:b"), "space:l1"), ["a", "b"]);
 });
+
+test("addressesBySpace: per space, agents no terminal started first, then the started ones", async () => {
+  const { addressesBySpace } = await import("../mods/herdr-folders/tree.js");
+  const agent = (space, address, tab_name = "", program = { name: "Claude Code" }) => ({ space, address, tab_name, program, title: "" });
+  const list = [
+    agent("s1", "t5", "helper"),
+    agent("s1", "t16", "主控"),
+    agent("s2", "t20"),
+    agent("s1", "t7", "", null),
+  ];
+  const out = addressesBySpace(list, new Set(["t5"]));
+  assert.deepEqual(out.s1.map((a) => a.address), ["t16", "t7", "t5"]);
+  assert.deepEqual(out.s1.map((a) => a.name), ["主控", "", "helper"]);
+  assert.deepEqual(out.s2, [{ address: "t20", name: "Claude Code" }]);
+  assert.equal(out.s3, undefined);
+  assert.deepEqual(addressesBySpace([], new Set()), {});
+});

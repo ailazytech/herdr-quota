@@ -52,6 +52,7 @@ node herdr-quota/install.mjs --switch --folders
 - **Icons:** a space shows its agent's icon and a folder a plain icon, and either can use an emoji
 - **Pinning:** click the pin on a hovered row, or drag a row into Pinned
 - **Running and to look at (執行與待觀看):** under Pinned, every space with an agent working, waiting on you, or done and not looked at yet, folded folders included, with the folders it sits in as small dim text before its name; the name moves to a second line when both don't fit. A click goes straight to an agent there that's done, if any. Pinned and this list stay put; only the folder tree scrolls
+- **Addresses:** after a space's name, its first agent's terminal address (such as `t16`); a click copies it, for handing to another agent (`hc read t16`). The top of the right-click menu lists every agent's address in the space to copy
 - **Status:** one mark per agent on the right, as in the Agents list
 - **Sorting:** a dropdown on the Spaces header (原始 manual, 資料夾日期 folder date, 啟用 agent active agents); it only changes the view
 - **主控 and 副控 (lead and second):** a space whose name or tab contains 主控 or 副控 is marked, or mark it from its right-click menu. Marked spaces get an outlined icon and a colored name while the rest step back a little, and a 主控 has its own spinner, so you can tell who's running

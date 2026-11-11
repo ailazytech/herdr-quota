@@ -9,6 +9,7 @@ import {
   ROOT, DEFAULT_ICON, emptyTree, kindOf, nameOf, machineAt, isFolded, canMove, move, slotNear,
   insertFolder, deleteFolder, updateFolder, setFolded, settle, rowsOf, isHex, spacesUnder,
   cleanEmoji, emojiOf, setEmoji, PINNED, isPinned, pin, unpin, ranked, agentRole, agentScore, spaceRole, setRole, setRoleColor, pathOf,
+  addressesBySpace,
 } from "./tree.js";
 
 const MOD = "herdr-folders";
@@ -22,6 +23,7 @@ const INDENT = 14;
 const EDGE = 7; // px at a folder row's top or bottom that drop beside it, not into it
 const SPACE_ROW_HALF = 15;
 const SWATCHES_PER_ROW = 8;
+const MENU_ADDRESSES = 8; // a space's menu lists at most this many agents' addresses
 
 // Theme names show these muted values on a folder's tile.
 const THEME_COLORS = { ansi6: "#399a8f", ansi3: "#c67e57", ansi4: "#5d84cc", ansi5: "#8377cf", ansi2: "#4e9c6b", ansi1: "#bd6790" };
@@ -175,7 +177,14 @@ export function openSortMenu() {
 // A right click on a space's row. Herdr's own menu can't take more items, so this
 // one has its everyday ones and a way to it.
 export function openSpaceMenu(id) {
-  openOverlay({ mod: MOD, kind: "popup", width: 236, height: 330, props: { spaceMenu: id } });
+  const listed = Math.min((allAddresses()[id] ?? []).length, MENU_ADDRESSES);
+  openOverlay({ mod: MOD, kind: "popup", width: 236, height: 330 + (listed ? 9 + 22 + 30 * listed : 0), props: { spaceMenu: id } });
+}
+
+// Every space's agents' addresses, the ones nobody started first (see addressesBySpace).
+function allAddresses() {
+  const children = new Set(terminals().filter((k) => k.parent).map((k) => k.address));
+  return addressesBySpace(agents(), children);
 }
 
 // "main", "sub" or "none", for the role-* commands.
@@ -211,6 +220,30 @@ export class Folders {
     this.hovered = null; // the key of the row under the pointer
     this.dragged = null; // the key under the pointer since the press
     this.drop = null; // { ref, index, over, side } where a release would put it
+    this.addresses = {}; // space id -> its agents' { address, name }, the row's first
+    this.copied = null; // the address just copied, shown as 已複製 for a moment
+  }
+
+  // After a space's name: its first agent's address (t16), small and monospace, to hand
+  // to another agent (`hc read t16`). A click copies it and says so for a moment.
+  addressChip(id, t) {
+    const address = this.addresses[id]?.[0]?.address;
+    if (!address) return null;
+    const copied = this.copied === address;
+    return div().id(`space-address-${id}`).flex_none().h(17).px(4).flex().items_center().rounded(4)
+      .border_1().border_color(t.border).font_family("JetBrains Mono").text_size(10.5)
+      .text_color(copied ? t.done : t.dim)
+      .hover((s) => s.bg(t.hover).text_color(t.foreground))
+      .tooltip("點一下複製位址")
+      .on_click((_e, cx) => {
+        cx.stop_propagation();
+        cx.write_to_clipboard(address);
+        this.copied = address;
+        cx.notify();
+        this.uncopy?.cancel();
+        this.uncopy = cx.timer.after(1500, (cx) => { this.copied = null; cx.notify(); });
+      })
+      .child(copied ? "已複製" : address);
   }
 
   // The draw list for what exists now (see rowsOf). Keeps the settled tree for
@@ -220,6 +253,7 @@ export class Folders {
     this.tree = settle(loadTree(), known);
     this.roles = Object.fromEntries(spaces().map((s) => [s.id, spaceRole(this.tree, s.id, namesOf(s))]));
     this.running = runningBySpace(this.roles);
+    this.addresses = allAddresses();
     this.programs = {};
     for (const a of agents()) if (a.program?.icon) this.programs[a.space] ??= a.program;
     return rowsOf(this.tree, known, this.order());
@@ -613,7 +647,21 @@ class SpaceMenu {
       saveTree(setRoleColor(loadTree(), role, color));
       cx.notify();
     };
+    // 複製位址: every agent in the space, its address first; a click copies it and closes.
+    const addresses = (allAddresses()[this.id] ?? []).slice(0, MENU_ADDRESSES);
+    const copy = ({ address, name }) => div().id(`space-copy-${address}`).h(30).px(10).flex().items_center().gap(9).rounded(6).cursor_pointer()
+      .hover((s) => s.bg(t.hover))
+      .on_click((_e, cx) => {
+        cx.write_to_clipboard(address);
+        closeOverlay(this.overlay);
+      })
+      .child(div().flex_none().font_family("JetBrains Mono").text_size(12).child(address))
+      .child(div().flex_1().min_w(0).truncate().text_color(t.dim).child(name));
     return v_flex().id("space-menu").w_full().p(5).gap(1).bg(t.popover).text_color(t.foreground).text_size(12.5)
+      .when(addresses.length > 0, (el) => el
+        .child(div().px(10).pt(3).h(22).text_size(11).text_color(t.dim).child("複製位址"))
+        .children(addresses.map(copy))
+        .child(separator(t)))
       .child(choice("main", "主控"))
       .child(choice("sub", "副控"))
       .child(choice(null, "不標記"))

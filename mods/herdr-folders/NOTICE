@@ -25,5 +25,5 @@ Changed for herdr-quota (https://github.com/ailazytech/herdr-quota):
                                Folders can hold spaces from several machines;
                                emoji, pinning, sorting, per-agent marks, 主控
                                and 副控 marks, a space menu, the narrow sidebar,
-                               and Chinese labels.
+                               terminal addresses to copy, and Chinese labels.
   mods/herdr-folders/lead-spinner.svg  Added.
