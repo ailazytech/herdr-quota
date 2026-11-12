@@ -22,10 +22,9 @@ git clone https://github.com/ailazytech/herdr-quota
 node herdr-quota/install.mjs --switch
 ```
 
-- 裝進 `~/.config/herdr-app`：`layouts/quota-main.json`、`layouts/quota-folders.json`、`mods/quota-status/`、`mods/herdr-folders/`、`mods/pane-address/`
-- `--switch` 會檢查 mod 並切到 `quota-main`，加 `--folders` 改切到有資料夾側欄的 `quota-folders`；`Ctrl+Shift+L` 可以切回原本的 layout
-- 已經有同名 layout 的話不會蓋掉（你可能改過），要用新版加 `--force`，舊的會留備份；只有 pane 標題列還是內建的 `pane` 時，會換成 `pane-address`（同樣留備份）
-- **pane 標題列的位址**：兩個 layout 的每個 pane 標題列都在名稱後面顯示它的終端機位址（例如 `t16`），agent 和一般 shell 都有；點一下複製，方便貼給別的 agent（`hc read t16`）
+- 裝進 `~/.config/herdr-app`：`layouts/quota-main.json`、`mods/quota-status/`
+- `--switch` 會檢查 mod 並切到 `quota-main`；`Ctrl+Shift+L` 可以切回原本的 layout
+- 已經有同名 layout 的話不會蓋掉（你可能改過），要用新版加 `--force`，舊的會留備份
 - 更新：`git pull` 後再跑一次 `node install.mjs`（mod 會更新，layout 照上一條）
 
 ### 搭配 tendr（選用）
@@ -43,30 +42,11 @@ tendr 的安裝會把自己的位置寫進 `~/.tendr/install.json`，狀態列�
 
 另外有裝 tunr 小播放器（`mods/tunr`）的話，狀態列也會多一顆 tunr 按鈕，點了開關它。
 
-## 資料夾側欄（選用）
+## 資料夾側欄：ranchr（選用）
 
-`quota-folders` 跟 `quota-main` 一樣，只是把左側的 Spaces 換成 `herdr-folders` mod：
+資料夾側欄、機器分頁、「執行與待觀看」和 pane 標題列的位址，搬到另一個專案 [ranchr](https://github.com/ailazytech/ranchr) 了。ranchr 的 layout 在有裝 quota-status 時，底部狀態列就用它，所以兩個一起裝，就同時有額度和資料夾側欄。
 
-```bash
-node herdr-quota/install.mjs --switch --folders
-```
-
-- **資料夾**：可以多層，不同機器的 space 也能放在同一個資料夾；收起來時顯示數量和裡面的狀態
-- **圖示**：space 預設顯示 agent 的圖案，資料夾預設一般圖示，都可以換成 emoji
-- **釘選**：滑過列時點圖釘，或把列拖進 Pinned 區
-- **機器分頁**：在「全部」、這台與其他機器之間切換；分頁顯示狀態並記住各機器上次看的 space，從 Agents 清單等地方切到別台的 space 時分頁會跟過去。快捷鍵要自己加進 `keys.json` 的 `global`，例如照分頁位置：`ctrl-alt-1` → `herdr-folders.workspace-all`、`ctrl-alt-2` → `herdr-folders.workspace-1`（這台）、`ctrl-alt-3` → `herdr-folders.workspace-2`（第一台遠端）…；另有 `workspace-next`、`workspace-prev`
-- **執行與待觀看**：釘選區下面列出所有有 agent 在跑、在等你，或已經 done 還沒看的 space，收起來的資料夾裡的也算；名稱前面用淺色小字標它在哪個資料夾，放不下時名稱換到下一行。點下去時，裡面有 agent 已經 done 就直接跳到那個 agent。釘選和這一區固定在上面，只有資料夾樹會捲動
-- **位址**：滑鼠移到 space 那一列時，名稱後面顯示它第一個 agent 的終端機位址（例如 `t16`），點一下複製；右鍵選單最上面列出這個 space 所有 agent 的位址，點了就複製。每個 pane 自己的位址在 pane 標題列
-- **狀態**：右邊每個 agent 一個標記，跟 Agents 清單一樣
-- **排序**：Spaces 標題列的下拉選單，有原始、資料夾日期、啟用 agent；只影響顯示，切回原始就還原
-- **主控與副控**：分頁或 space 名稱含「主控」「副控」會自動標記，也可以在 space 上按右鍵標。標記後圖示有外框、名稱換色，其他 space 略淡；主控的轉圈樣式跟別人不同，一眼看得出誰在跑
-- **窄側欄**：每個 space 顯示字母或 emoji，角落是最緊急的狀態
-
-注意：
-
-- 資料夾只影響側欄的顯示。`space.next` 和數字快捷鍵還是照 App 原本的順序
-- 這個 mod 是內建 Spaces 的複本，官方更新 Spaces 時不會自動跟上
-- 資料夾存在這台電腦的 App 共享狀態裡，不會跟著機器同步
+之前用 `quota-folders` 的：裝 ranchr 時會從你的 `quota-folders` 版面開始，資料夾、釘選、主控標記都不用搬。herdr-quota 不再更新 `quota-folders`，確定 ranchr 沒問題後可以刪掉它。
 
 ## 資料從哪來
 
@@ -158,16 +138,9 @@ agy 的額度是分組的：`logo`、`name` 只放一次，其他元素每組各
 - `refresh`：不管快取，立刻重抓
 - `tendr`：開關右側的 tendr 看板
 
-`herdr-app do herdr-folders.<指令>`，或在 `keys.json` 綁 `herdr-folders.<指令>`，都是對目前顯示的 space：
-
-- `menu`：開 space 的選單
-- `emoji`：換 emoji
-- `role-main`、`role-sub`、`role-none`：標成主控、副控、不標記
-- `sort`：開排序選單；`sort-manual`、`sort-date`、`sort-agents`：直接切換
-
 ## 移除
 
-`Ctrl+Shift+L` 切回別的 layout，再刪掉 `~/.config/herdr-app/layouts/` 裡的 `quota-main.json`、`quota-folders.json`，以及 `~/.config/herdr-app/mods/` 裡的 `quota-status/`、`herdr-folders/`、`pane-address/`。
+`Ctrl+Shift+L` 切回別的 layout，再刪掉 `~/.config/herdr-app/layouts/` 裡的 `quota-main.json`，以及 `~/.config/herdr-app/mods/` 裡的 `quota-status/`。
 
 ## 給 agent
 
@@ -175,4 +148,4 @@ agy 的額度是分組的：`logo`、`name` 只放一次，其他元素每組各
 
 ## 授權
 
-[MIT](LICENSE)。`mods/herdr-folders` 改寫自 [chrisggraham/herdr-folders](https://github.com/chrisggraham/herdr-folders)（MIT）與 Herdr 內建的 Spaces（Apache 2.0），見該資料夾的 [NOTICE](mods/herdr-folders/NOTICE)。`mods/pane-address` 改寫自 Herdr 內建的 pane 標題列（Apache 2.0），見 [NOTICE](mods/pane-address/NOTICE)。
+[MIT](LICENSE)。
