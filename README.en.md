@@ -52,6 +52,7 @@ node herdr-quota/install.mjs --switch --folders
 - **Folders:** nest them, and put spaces from different machines in one folder; a folded folder shows its count and what's inside
 - **Icons:** a space shows its agent's icon and a folder a plain icon, and either can use an emoji
 - **Pinning:** click the pin on a hovered row, or drag a row into Pinned
+- **Machine tabs:** switch between all machines, this computer and each remote machine; tabs show status and remember the last space on each machine. Suggested `keys.json` bindings: `ctrl-alt-0` → `herdr-folders:workspace-all`, `ctrl-alt-1`…`ctrl-alt-9` → `herdr-folders:workspace-1`…`workspace-9`, `ctrl-alt-]` → `herdr-folders:workspace-next`, `ctrl-alt-[` → `herdr-folders:workspace-prev`. Add them yourself.
 - **Running and to look at (執行與待觀看):** under Pinned, every space with an agent working, waiting on you, or done and not looked at yet, folded folders included, with the folders it sits in as small dim text before its name; the name moves to a second line when both don't fit. A click goes straight to an agent there that's done, if any. Pinned and this list stay put; only the folder tree scrolls
 - **Addresses:** while the pointer is on a space's row, its first agent's terminal address (such as `t16`) shows after the name; a click copies it. The top of the right-click menu lists every agent's address in the space to copy. Each pane's own address is in its header
 - **Status:** one mark per agent on the right, as in the Agents list

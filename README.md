@@ -52,6 +52,7 @@ node herdr-quota/install.mjs --switch --folders
 - **資料夾**：可以多層，不同機器的 space 也能放在同一個資料夾；收起來時顯示數量和裡面的狀態
 - **圖示**：space 預設顯示 agent 的圖案，資料夾預設一般圖示，都可以換成 emoji
 - **釘選**：滑過列時點圖釘，或把列拖進 Pinned 區
+- **機器分頁**：在「全部」、這台與其他機器之間切換；分頁顯示狀態並記住各機器上次看的 space。建議在 `keys.json` 綁 `ctrl-alt-0` → `herdr-folders:workspace-all`、`ctrl-alt-1`…`ctrl-alt-9` → `herdr-folders:workspace-1`…`workspace-9`、`ctrl-alt-]` → `herdr-folders:workspace-next`、`ctrl-alt-[` → `herdr-folders:workspace-prev`；需自行設定
 - **執行與待觀看**：釘選區下面列出所有有 agent 在跑、在等你，或已經 done 還沒看的 space，收起來的資料夾裡的也算；名稱前面用淺色小字標它在哪個資料夾，放不下時名稱換到下一行。點下去時，裡面有 agent 已經 done 就直接跳到那個 agent。釘選和這一區固定在上面，只有資料夾樹會捲動
 - **位址**：滑鼠移到 space 那一列時，名稱後面顯示它第一個 agent 的終端機位址（例如 `t16`），點一下複製；右鍵選單最上面列出這個 space 所有 agent 的位址，點了就複製。每個 pane 自己的位址在 pane 標題列
 - **狀態**：右邊每個 agent 一個標記，跟 Agents 清單一樣

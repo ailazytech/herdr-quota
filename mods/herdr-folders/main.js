@@ -18,7 +18,8 @@
 // marked 主控 or 副控 (by its name or a tab's, or from its menu) gets an outlined icon
 // and a colored name while the rest step back, a 主控 has its own spinner, a space's
 // name is followed, while the pointer is on its row, by its first agent's address (a click copies it), and a
-// space's right click opens this mod's menu, which lists every agent's address to copy.
+// space's right click opens this mod's menu, which lists every agent's address to copy;
+// machine workspace tabs filter the sidebar and remember each machine's last space.
 //
 // Workspace spaces: stable colored avatars, worktrees under their checkout,
 // grouped by machine when more than one is known. After a space's name, the repo
@@ -28,8 +29,12 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, agents, machines, panes, run, exec, hc, theme, shared, setShared, watchFolder, window, layout, props, nextCommand } from "herdr";
-import { Folders, overlayFor, openEmoji, openSortMenu, openSpaceMenu, markSpace, setSort, FADE, named } from "./folders.js";
-import { nameOf, PINNED } from "./tree.js";
+import { Folders, overlayFor, openEmoji, openSortMenu, openSpaceMenu, markSpace, setSort, FADE, named, mark } from "./folders.js";
+import { nameOf, PINNED, workspaceKnown, workspaceTarget, workspaceSpace } from "./tree.js";
+
+const WORKSPACE_KEY = "herdr-folders.workspace";
+const LAST_SPACE_KEY = "herdr-folders.workspace-last-space";
+const workspace = () => shared(WORKSPACE_KEY) ?? null;
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -121,6 +126,10 @@ export default class Spaces extends View {
         if (command.startsWith("role-") && shown) markSpace(shown, command.slice(5));
         if (command === "sort") openSortMenu();
         if (command.startsWith("sort-")) setSort(command.slice(5));
+        if (command.startsWith("workspace-")) {
+          const target = workspaceTarget(command, workspace(), this.machines.map((m) => m.name));
+          if (target !== undefined) this.selectWorkspace(target);
+        }
         cx.notify();
       }
     });
@@ -129,12 +138,56 @@ export default class Spaces extends View {
   checkNew(cx) {
     const now = Date.now();
     const sp = spaces();
+    this.rememberSpace(sp);
     this.folded = this.folders.foldedMachines();
     this.folders.adoptNew(sp);
     for (const s of sp) if (!this.shown.has(s.id)) this.born[s.id] ??= now;
     const due = this.due(now, sp, panes());
     if (due.size) this.refreshGit(due, cx);
     if (sp.some((s) => !this.shown.has(s.id)) || this.orderingDue(now)) cx.notify();
+  }
+
+  rememberSpace(sp) {
+    const active = sp.find((s) => s.active);
+    if (!active) return;
+    const key = active.machine ?? "";
+    const last = shared(LAST_SPACE_KEY) ?? {};
+    if (last[key] !== active.id) setShared(LAST_SPACE_KEY, { ...last, [key]: active.id });
+  }
+
+  selectWorkspace(target) {
+    const sp = spaces();
+    this.rememberSpace(sp);
+    setShared(WORKSPACE_KEY, target);
+    if (target === null) return;
+    const id = workspaceSpace(sp, target, (shared(LAST_SPACE_KEY) ?? {})[target]);
+    if (id) run("space.select", { id });
+  }
+
+  workspaceTabs(t, collapsed) {
+    if (!this.machines.length) return null;
+    const current = workspace();
+    const tabs = [{ key: null, label: "全部" }, { key: "", label: "這台" }, ...this.machines.map((m) => ({ key: m.name, label: m.name, machine: m }))];
+    const choose = (key, cx) => { this.selectWorkspace(key); cx.notify(); };
+    if (collapsed) {
+      const tab = tabs.find((item) => item.key === current) ?? tabs[0];
+      return h_flex().h(30).flex_none().justify_center().items_center()
+        .child(div().id("workspace-compact").size(24).rounded(6).bg(t.selected).text_color(t.foreground).flex().items_center().justify_center().cursor_pointer()
+          .tooltip(tab.label).on_click((_e, cx) => choose(workspaceTarget("workspace-next", current, this.machines.map((m) => m.name)), cx)).child([...tab.label][0]));
+    }
+    const sp = spaces();
+    return h_flex().id("workspace-tabs").flex_none().px(8).pb(4).gap(2).items_center().overflow_x_scroll()
+      .children(tabs.map((tab, i) => {
+        const ids = sp.filter((s) => tab.key === null || (s.machine ?? "") === tab.key).map((s) => s.id);
+        const urgent = this.folders.urgent(ids)[0];
+        const selected = tab.key === current;
+        return h_flex().id(`workspace-tab-${i}`).h(24).px(6).gap(4).items_center().rounded(5).flex_none().cursor_pointer()
+          .text_color(tab.machine && tab.machine.state !== "connected" ? t.dim : selected ? t.foreground : t.muted)
+          .when(selected, (el) => el.bg(t.selected).font_semibold())
+          .hover((s) => s.bg(t.hover))
+          .on_click((_e, cx) => choose(tab.key, cx)).child(tab.label)
+          .when(Boolean(urgent), (el) => el.child(mark(urgent, t)));
+      }));
   }
 
   // Places whose git could have changed: new ones (a new space, a cd), where a
@@ -377,8 +430,10 @@ export default class Spaces extends View {
     const loadingRow = m => div().id(`machine-loading-${m ?? "local"}`).h(28).flex_none().px(8).text_size(12).text_color(t.dim).child(collapsed ? "…" : "Loading…");
     const ps = panes();
     this.folders.dates = Object.fromEntries(rows.map((r) => [r.w.id, r.g?.date || this.stamps[where(r.w, ps)] || 0]));
-    const nodes = this.folders.nodes({ spaces: tops, machines: remote });
-    if (!nodes.length) return { top: [], rest: loading(null) ? [loadingRow(null)] : [] };
+    const selected = workspace();
+    this.folders.workspace = selected;
+    const nodes = this.folders.nodes(workspaceKnown({ spaces: tops, machines: remote }, selected), selected !== null);
+    if (!nodes.length) return { top: [], rest: (selected === null || selected === "") && loading(null) ? [loadingRow(null)] : [] };
     // A machine's header and, unless it's folded, a row to start a space when it has nothing.
     const machineBlock = (node) => {
       const m = nameOf(node.key);
@@ -442,7 +497,7 @@ export default class Spaces extends View {
     if (pinCount && !collapsed) pinned.unshift(head("Pinned", pinCount));
     // 執行與待觀看: what's running or done anywhere, folded away or not. The narrow sidebar has its corners instead.
     const byId = new Map(spaces().map((s) => [s.id, s]));
-    const busy = collapsed ? [] : this.folders.busy().filter(({ id }) => byId.has(id));
+    const busy = collapsed ? [] : this.folders.busy().filter(({ id }) => byId.has(id) && (selected === null || (byId.get(id).machine ?? "") === selected));
     const running = busy.length ? [head("執行與待觀看", busy.length), ...busy.map(({ id, path }) => this.busyRow(byId.get(id), path, t))] : [];
     const top = [pinned, running].filter((rows) => rows.length)
       .flatMap((rows, i) => (i ? [div().h(1).flex_none().mx(8).my(6).bg(t.border), ...rows] : rows));
@@ -595,7 +650,8 @@ export default class Spaces extends View {
         .child(h_flex().items_center()
           .when(!collapsed, el => el.child(this.folders.sortButton(t)).child(this.folders.newFolderButton(t)))
           .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).hover(s => s.bg(t.hover).text_color(t.foreground))
-            .on_click(() => run("space.new")).child(svg("mods/workspace-chrome/plus.svg").size(14)))))
+            .on_click(() => workspace() === null ? run("space.new") : run("space.new", { machine: workspace() })).child(svg("mods/workspace-chrome/plus.svg").size(14)))))
+      .when(this.machines.length > 0, (el) => el.child(this.workspaceTabs(t, collapsed)))
       // Pinned and 執行與待觀看 stay put and only the tree scrolls; capped, so the tree keeps room.
       .when(top.length > 0, (el) => el.child(v_flex().id("spaces-top").flex_none().max_h("55%").px(8).overflow_y_scroll().children(top))
         .when(rest.length > 0, (el) => el.child(div().h(1).flex_none().mx(16).my(6).bg(t.border))))

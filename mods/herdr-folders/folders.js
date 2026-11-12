@@ -90,9 +90,9 @@ function saveTree(tree) {
 
 // What a folded folder hides: how many spaces, whether the shown one is in there,
 // and the strongest role, so folding never loses a 主控.
-function hiddenIn(tree, key) {
+function hiddenIn(tree, key, visible) {
   const inside = new Set(spacesUnder(tree, key));
-  const found = spaces().filter((s) => inside.has(s.id));
+  const found = spaces().filter((s) => inside.has(s.id) && (!visible || visible.has(s.id)));
   const roles = found.map((s) => spaceRole(tree, s.id, namesOf(s)));
   return { count: found.length, active: found.some((s) => s.active), role: ["main", "sub"].find((r) => roles.includes(r)) ?? null };
 }
@@ -141,7 +141,7 @@ export function named(el, role, t) {
 }
 
 // The Agents list's own marks: a spinner, a "!", a dot.
-function mark({ status, role }, t) {
+export function mark({ status, role }, t) {
   if (status === "working") return spinner(role, 12, t);
   if (status === "blocked") return div().size(14).flex_none().rounded(4).bg(t.blocked + "26").text_size(10.5).font_bold().text_color(t.blocked).flex().items_center().justify_center().child("!");
   return div().size(7).mx(2).flex_none().rounded(4).bg(t.done);
@@ -249,15 +249,16 @@ export class Folders {
 
   // The draw list for what exists now (see rowsOf). Keeps the settled tree for
   // the folder rows and for aiming a drag.
-  nodes(known) {
+  nodes(known, filtered = false) {
     this.known = known;
+    this.visible = filtered ? new Set(spaces().filter((s) => (s.machine ?? "") === this.workspace).map((s) => s.id)) : null;
     this.tree = settle(loadTree(), known);
     this.roles = Object.fromEntries(spaces().map((s) => [s.id, spaceRole(this.tree, s.id, namesOf(s))]));
     this.running = runningBySpace(this.roles);
     this.addresses = allAddresses();
     this.programs = {};
     for (const a of agents()) if (a.program?.icon) this.programs[a.space] ??= a.program;
-    return rowsOf(this.tree, known, this.order());
+    return rowsOf(this.tree, known, this.order(), { hideEmptyFolders: filtered });
   }
 
   // The order for the chosen sort; none keeps the tree's.
@@ -352,8 +353,12 @@ export class Folders {
     return h_flex().absolute().right(0).bottom(1).size(12).rounded(6).bg(t.chrome).items_center().justify_center().child(sign);
   }
 
+  visibleUnder(key) {
+    return spacesUnder(this.tree, key).filter((id) => !this.visible || this.visible.has(id));
+  }
+
   marksIn(key, t) {
-    return this.marks(spacesUnder(this.tree, key), t);
+    return this.marks(this.visibleUnder(key), t);
   }
 
   // The 執行與待觀看 list: every space with an agent working, waiting on you, or done
@@ -432,7 +437,7 @@ export class Folders {
   folderRow(node, t, collapsed) {
     const id = nameOf(node.key);
     const folder = this.tree.folders[id];
-    const hidden = node.folded ? hiddenIn(this.tree, node.key) : null;
+    const hidden = node.folded ? hiddenIn(this.tree, node.key, this.visible) : null;
     // A plain folder icon until someone picks an emoji or a color.
     const box = () => ringed(h_flex().size(18).flex_none().rounded(5).items_center().justify_center(), hidden?.role, t);
     const icon = folder.icon ?? DEFAULT_ICON;
@@ -447,7 +452,7 @@ export class Folders {
       });
     // Narrow: an open folder fades to a divider, a folded one sums up what it hides.
     if (collapsed) {
-      const corner = node.folded ? this.corner(spacesUnder(this.tree, node.key), t) : null;
+      const corner = node.folded ? this.corner(this.visibleUnder(node.key), t) : null;
       return row.justify_center().h(node.folded ? FOLDER_ROW : 22).tooltip(this.label(hidden?.role, folder.name))
         .when(Boolean(hidden?.active), (el) => el.bg(t.selected))
         .child(node.folded ? tile : div().opacity(0.45).child(tile))

@@ -12,6 +12,9 @@ import {
   setFolded,
   updateFolder,
   isHex,
+  workspaceKnown,
+  workspaceTarget,
+  workspaceSpace,
 } from "../mods/herdr-folders/tree.js";
 
 // This computer: folders a (holding b and a local space) and a local space.
@@ -154,6 +157,52 @@ test("insertFolder: with no folder yet, goes first; a machine can be the parent"
 const known = (spaces, machines = []) => ({ spaces, machines });
 const local = (id) => ({ id, machine: null });
 const remote = (machine, id) => ({ id: `${machine}/${id}`, machine });
+
+test("workspace filter keeps matching spaces and their ancestors, including pinned and folded folders", async () => {
+  const { pin } = await import("../mods/herdr-folders/tree.js");
+  let tree = sample();
+  tree = move(tree, "space:dev/r1", "folder:a", 0);
+  tree = pin(tree, "folder:a");
+  tree.folders.a.folded = true;
+  const all = known([local("l1"), local("l2"), remote("dev", "r1"), remote("dev", "r2")], ["dev", "other"]);
+  const filtered = workspaceKnown(all, "dev");
+  const nodes = rowsOf(tree, filtered, undefined, { hideEmptyFolders: true });
+  assert.deepEqual(keysOf(nodes), ["folder:a", "machine:dev", "folder:m", "space:dev/r2"]);
+  assert.equal(nodes[0].folded, true);
+  assert.equal(nodes[0].empty, false);
+  tree.folders.a.folded = false;
+  assert.deepEqual(keysOf(rowsOf(tree, filtered, undefined, { hideEmptyFolders: true })), ["folder:a", "space:dev/r1", "machine:dev", "folder:m", "space:dev/r2"]);
+  assert.deepEqual(keysOf(rowsOf(tree, workspaceKnown(all, ""), undefined, { hideEmptyFolders: true })), ["folder:a", "space:l2", "space:l1"]);
+});
+
+test("all workspace preserves rows and empty folders, and filtering never removes saved tree entries", () => {
+  const all = known([local("l1"), local("l2"), remote("dev", "r1"), remote("dev", "r2")], ["dev", "other"]);
+  const tree = settle(sample(), all);
+  const before = structuredClone(tree);
+  assert.equal(workspaceKnown(all, null), all);
+  assert.deepEqual(rowsOf(tree, workspaceKnown(all, null)), rowsOf(tree, all));
+  assert.ok(keysOf(rowsOf(tree, all)).includes("folder:b"));
+  for (const target of ["", "dev", "other"]) {
+    const filtered = workspaceKnown(all, target);
+    rowsOf(tree, filtered, undefined, { hideEmptyFolders: true });
+    assert.deepEqual(settle(tree, filtered), before);
+    assert.deepEqual(tree, before);
+  }
+});
+
+test("workspace commands wrap in tab order and restore only an existing space on the chosen machine", () => {
+  const machines = ["studio", "home"];
+  for (const [command, current, target] of [
+    ["workspace-all", "home", null], ["workspace-next", null, ""], ["workspace-prev", null, "home"],
+    ["workspace-next", "home", null], ["workspace-1", null, ""], ["workspace-2", null, "studio"],
+    ["workspace-3", null, "home"], ["workspace-9", null, undefined], ["workspace-0", null, undefined],
+  ]) assert.equal(workspaceTarget(command, current, machines), target, command);
+  const spaces = [local("one"), remote("studio", "a"), remote("studio", "b")];
+  assert.equal(workspaceSpace(spaces, "studio", "studio/b"), "studio/b");
+  assert.equal(workspaceSpace(spaces, "studio", "one"), "studio/a");
+  assert.equal(workspaceSpace(spaces, "", null), "one");
+  assert.equal(workspaceSpace(spaces, "home", null), null);
+});
 
 test("rowsOf: unplaced spaces and machines go to the end of the root or their machine", () => {
   const tree = emptyTree();

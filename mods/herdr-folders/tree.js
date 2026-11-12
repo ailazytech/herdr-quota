@@ -311,11 +311,36 @@ export function settle(tree, known) {
   return { ...tree, children };
 }
 
+// null is all machines; the empty string is this computer.
+export function workspaceKnown(known, workspace) {
+  if (workspace === null) return known;
+  return {
+    spaces: known.spaces.filter((space) => (space.machine ?? "") === workspace),
+    machines: known.machines.filter((machine) => machine === workspace),
+  };
+}
+
+export function workspaceTarget(command, current, machines) {
+  const tabs = [null, "", ...machines];
+  if (command === "workspace-all") return null;
+  if (command === "workspace-next" || command === "workspace-prev") {
+    const at = Math.max(0, tabs.indexOf(current));
+    return tabs[(at + (command === "workspace-next" ? 1 : -1) + tabs.length) % tabs.length];
+  }
+  const match = /^workspace-([1-9])$/.exec(command);
+  return match && Number(match[1]) < tabs.length ? tabs[Number(match[1])] : undefined;
+}
+
+export function workspaceSpace(spaces, workspace, last) {
+  const candidates = spaces.filter((space) => (space.machine ?? "") === workspace);
+  return candidates.find((space) => space.id === last)?.id ?? candidates[0]?.id ?? null;
+}
+
 // The draw list: one node per thing to show, parents before their children,
 // with its depth and its parent ref. A folded
 // node's children are left out. Keys for what no longer exists are skipped
 // and stay in the store (a machine can come back).
-export function rowsOf(tree, known, order = (keys) => keys) {
+export function rowsOf(tree, known, order = (keys) => keys, { hideEmptyFolders = false } = {}) {
   const full = settle(tree, known);
   const present = new Set([
     ...known.spaces.map((space) => `space:${space.id}`),
@@ -329,6 +354,7 @@ export function rowsOf(tree, known, order = (keys) => keys) {
     // The pinned list keeps the order it was given: that's what pinning is for.
     for (const key of ref === PINNED ? keys : order(keys)) {
       if (!exists(key)) continue;
+      if (hideEmptyFolders && kindOf(key) === "folder" && !spacesUnder(full, key).some((id) => present.has(`space:${id}`))) continue;
       const node = { key, kind: kindOf(key), depth, parent: ref };
       out.push(node);
       if (!isContainer(key) || visited.has(key)) continue;
