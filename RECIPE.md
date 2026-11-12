@@ -21,6 +21,8 @@ Herdr's default window (spaces and agents on the left, tabs on top, pane cards, 
 
 ## Settings
 
+- The language buttons select the shared system, Traditional Chinese, or English interface language immediately; the `language-auto`, `language-zh`, and `language-en` commands do the same.
+
 - **File:** `mods/quota-status/config.json` beside `quota.mjs` (git-ignored, never overwritten by install). `quota.mjs` reads and checks it; a wrong entry is reported in `configErrors` and falls back to its default instead of breaking the bar.
 - **Look, like claude-hud:** `preset` is `compact` (default: `logo`, `group`, `weekly`, `weekly.reset`, `5h.bar`, `5h.reset`), `full` (`logo`, `name`, `group`, `weekly.bar`, `weekly.reset`, `5h.bar`, `5h.reset`) or `minimal` (`logo`, `group`, `weekly`, `5h`). `layout` overrides it with its own list, as `default` or per provider. Elements: `logo`, `name`, `group` (agy's group name), `weekly`, `weekly.bar`, `weekly.reset`, `5h`, `5h.bar`, `5h.reset`; any other string is shown as is in `dim` (separators, own labels). For a provider with groups, `logo` and `name` appear once and the rest once per group. A string that looks like a misspelled element (`weekly.rest`) is still shown, and also reported.
 - **Other keys:** `providers` (order and which), `percent` (`used` or `left`; colors always follow what's used), `cautionAt` 70 / `warnAt` 90, `weeklyResetAt` (a number for all, or `{default: 90, agy: 0}`), `ttlSec`, `timeoutMs`, `agyTimeoutMs`.

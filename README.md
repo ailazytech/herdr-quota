@@ -74,6 +74,8 @@ node ~/.config/herdr-app/mods/quota-status/quota.mjs detail   # 表格
 
 ## 設定
 
+介面預設跟隨系統語言；設定視窗的「語言 Language」可立即切換跟系統、繁體中文或 English。也可使用 `quota-status.language-auto`、`quota-status.language-zh`、`quota-status.language-en` 指令；語言選擇與其他 mod 共用。
+
 點狀態列的額度開小視窗，按「⚙ 設定」就能在 App 裡直接改（或 `herdr-app do quota-status.settings`）：上面有樣式與百分比的快速按鈕，下面是 JSON。存檔前會先檢查 JSON，存完馬上套用。
 
 設定存在 `~/.config/herdr-app/mods/quota-status/config.json`，更新不會蓋掉，也可以用任何編輯器改（下一次重新整理、最多一分鐘內套用）。寫錯的項目會列在小視窗與設定視窗裡、改用預設值，狀態列不會因此壞掉。`node quota.mjs config` 印出目前生效的設定。

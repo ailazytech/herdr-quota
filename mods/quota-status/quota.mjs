@@ -8,6 +8,7 @@
 //   node quota.mjs detail [--wait] 詳細表格；--wait 會等按鍵
 // 設定：同一個資料夾的 config.json（或 HERDR_QUOTA_CONFIG 指的檔），見 DEFAULTS
 import { execFile } from 'node:child_process';
+import { encodeQuotaText } from './i18n.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -528,11 +529,11 @@ try {
     // 狀態列讀這個：results 是各家的額度，display 是照設定算好的顯示方式
     case 'json': {
       const results = await collect(cfg, args.includes('--force'));
-      console.log(JSON.stringify({ results, display: displayConfig(cfg), configErrors: cfg.configErrors }, null, 2));
+      console.log(JSON.stringify({ results: results.map((r) => ({ ...r, error: encodeQuotaText(r.error), errorDetail: encodeQuotaText(r.errorDetail) })), display: displayConfig(cfg), configErrors: cfg.configErrors.map(encodeQuotaText) }, null, 2));
       break;
     }
     // 目前生效的設定（沒有 config.json 時就是預設值），設定視窗拿來當起點
-    case 'config': console.log(JSON.stringify({ config: editableConfig(cfg), file: CONFIG_FILE, exists: fs.existsSync(CONFIG_FILE), configErrors: cfg.configErrors }, null, 2)); break;
+    case 'config': console.log(JSON.stringify({ config: editableConfig(cfg), file: CONFIG_FILE, exists: fs.existsSync(CONFIG_FILE), configErrors: cfg.configErrors.map(encodeQuotaText) }, null, 2)); break;
     case 'detail': await detail(cfg, args.includes('--wait'), color); break;
     default:
       console.error('usage: node quota.mjs [line|refresh|detail [--wait]|json|config] [--color|--no-color]');

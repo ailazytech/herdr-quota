@@ -8,6 +8,7 @@
 // 有裝 tendr 的話（~/.tendr/install.json），也負責開機後接回 Claude，以及開關右側的 tendr 看板（火焰圖示：守著爐火的人）
 // 有裝 tunr 的話（mods/tunr），狀態列多一顆開關這個小播放器的按鈕
 import { View, div, svg, image } from "gpui-kit";
+import { t, quotaText, encodeQuotaText } from "./i18n.js";
 import { h_flex, v_flex, Editor, EditorState } from "gpui-base";
 import { spaces, agents, theme, run, window, exec, shared, setShared, openOverlay, closeOverlay, nextCommand, props, layout, notify, home, appHome, readTextFile, writeTextFile, settings } from "herdr";
 
@@ -15,14 +16,18 @@ const MOD = "quota-status";
 const SHARED_KEY = MOD + ".quota";
 // 重開機後接回 Claude：App 一啟動跑一次，core 恢復終端機可能晚一點，前 10 分鐘每分鐘再看一次
 const RESUME_TRIES = 10;
-const LABEL = { "5h": "Usage", week: "Weekly", month: "Monthly", period: "Period" };
+const LABEL = { "5h": "usage", week: "weekly", month: "monthly", period: "period" };
 const NAME = { claude: "Claude", codex: "Codex", grok: "Grok", agy: "Antigravity" };
 // 品牌圖示用 App 內建的 icons/：彩色的用 image，單色（currentColor）的用 svg 跟著文字色
 const LOGO = { claude: ["image", "icons/claude.svg"], codex: ["image", "icons/codex.svg"], grok: ["svg", "icons/grok.svg"], agy: ["image", "icons/antigravity.svg"] };
 // quota.mjs 沒回顯示設定時（例如還是舊版）：跟 preset compact 一樣
 const FALLBACK = { percent: "used", warnAt: 90, cautionAt: 70, providers: {} };
 const FALLBACK_LAYOUT = ["logo", "group", "weekly", "weekly.reset", "5h.bar", "5h.reset"];
-const PRESET_NAMES = { compact: "精簡", full: "完整", minimal: "極簡" };
+const PRESET_NAMES = { compact: "compact", full: "full", minimal: "minimal" };
+const language = () => { const selected = shared("ui.language") ?? "auto"; return selected === "auto" ? (shared("ui.system-language") ?? "en") : selected; };
+const tr = (key, vars) => t(key, vars, language());
+const qt = (value) => quotaText(encodeQuotaText(value), language());
+const errorsText = (errors) => errors.map(qt).join(language() === "zh-TW" ? "；" : "; ");
 const BAR = 48;
 
 const scriptPath = () => appHome() + "/mods/" + MOD + "/quota.mjs";
@@ -80,13 +85,19 @@ function logo(id, size) {
 // 舊資料的視窗全都重置過了，等於沒資料
 const allReset = (good, now) => good.windows.length > 0 && good.windows.every((w) => w.resetsAt && w.resetsAt <= now);
 // token 過期、沒登入用 🔑（開一次那個 CLI 就好），其他錯誤用 ⚠️
-const errorEmoji = (error) => (/過期|登入/.test(error ?? "") ? "🔑" : "⚠️");
+const errorEmoji = (error) => (["qLoginAgain", "qNotLoggedIn", "qExpired"].includes(error?.key) || /過期|登入/.test(typeof error === "string" ? error : "") ? "🔑" : "⚠️");
 // 顏色一律看用掉多少；percent: left 時數字與條改成剩下多少
 const toneOf = (t, d, used, calm) => (used >= d.warnAt ? t.ansi1 : used >= d.cautionAt ? t.ansi3 : calm);
 const shownOf = (d, used) => (d.percent === "left" ? 100 - Math.round(used) : Math.round(used));
 
 export default class QuotaStatus extends View {
   init(_props, cx) {
+    if (!shared("ui.system-language")) cx.spawn(async (cx) => {
+      let detected = "en";
+      try { const r = await exec("node", ["-p", "Intl.DateTimeFormat().resolvedOptions().locale"]); if (r.stdout.trim().toLowerCase().startsWith("zh")) detected = "zh-TW"; } catch {}
+      if (!shared("ui.system-language")) setShared("ui.system-language", detected);
+      cx.notify();
+    });
     // overlay 帶的 props 要從 herdr 的 props() 讀，init 收到的不是
     const p = props() ?? {};
     this.mode = p.settings ? "settings" : p.detail ? "detail" : "bar";
@@ -125,6 +136,9 @@ export default class QuotaStatus extends View {
           if (c === "settings") this.openSettings();
           if (c === "tendr") this.toggleTendr();
           if (c === "refresh") this.refresh(cx, true);
+          if (c === "language-auto") setShared("ui.language", "auto");
+          if (c === "language-zh") setShared("ui.language", "zh-TW");
+          if (c === "language-en") setShared("ui.language", "en");
           cx.notify();
         }
       });
@@ -166,7 +180,7 @@ export default class QuotaStatus extends View {
         const r = await exec("node", [info.resume]);
         const out = JSON.parse(r.stdout);
         if (out.resumed?.length) {
-          notify({ title: `已接回 ${out.resumed.length} 個 Claude 對話`, body: out.resumed.map((x) => x.terminal).join("、"), level: "info" });
+          notify({ title: tr("resumed", { count: out.resumed.length }), body: out.resumed.map((x) => x.terminal).join("、"), level: "info" });
         }
       } catch {
         // hc 還沒起來之類的：下一分鐘再試
@@ -270,7 +284,7 @@ export default class QuotaStatus extends View {
 
   quotaChips(t) {
     const q = shared(SHARED_KEY);
-    if (!q?.data) return div().text_color(t.dim).child(this.quotaError ? "額度 ⚠️" : "額度…");
+    if (!q?.data) return div().text_color(t.dim).child(tr(this.quotaError ? "quotaError" : "quotaLoading"));
     const now = Date.now();
     const d = this.display();
     return h_flex().id("quota").gap(12).items_center()
@@ -283,15 +297,15 @@ export default class QuotaStatus extends View {
   // ---- 詳細小視窗：claude-hud 樣式 ----
 
   windowView(w, t, now, d) {
-    const kind = div().text_color(t.dim).child(LABEL[w.kind] ?? w.kind);
+    const kind = div().text_color(t.dim).child(LABEL[w.kind] ? tr(LABEL[w.kind]) : w.kind);
     const left = w.resetsAt ? w.resetsAt - now : null;
-    if (left != null && left <= 0) return h_flex().gap(5).items_center().child(kind).child(div().text_color(t.dim).child("(reset)"));
+    if (left != null && left <= 0) return h_flex().gap(5).items_center().child(kind).child(div().text_color(t.dim).child(tr("reset")));
     const shown = shownOf(d, w.used);
     const tone = toneOf(t, d, w.used, t.ansi4);
     const fill = Math.max(0, Math.min(BAR, (shown / 100) * BAR));
     const bar = div().w(BAR).h(6).rounded(3).bg(t.border).child(div().h_full().w(fill).rounded(3).bg(tone));
     return h_flex().gap(5).items_center().child(kind).child(bar)
-      .child(div().text_color(tone).child(`${shown}%${d.percent === "left" ? " left" : ""}${left != null ? ` (resets in ${fmtLeft(left)})` : ""}`));
+      .child(div().text_color(tone).child(`${shown}%${d.percent === "left" ? tr("left") : ""}${left != null ? tr("resetsIn", { time: fmtLeft(left) }) : ""}`));
   }
 
   detailRow(r, t, now, d) {
@@ -299,7 +313,7 @@ export default class QuotaStatus extends View {
     const good = r.good;
     let body;
     if (!good || (r.error && allReset(good, now))) {
-      body = div().text_color(t.ansi3).child(`${errorEmoji(r.error)} ${r.errorDetail ?? r.error ?? "沒有資料"}`);
+      body = div().text_color(t.ansi3).child(`${errorEmoji(r.error)} ${qt(r.errorDetail ?? r.error) ?? tr("noData")}`);
     } else {
       const line = (windows) => {
         const segs = [];
@@ -318,8 +332,8 @@ export default class QuotaStatus extends View {
     const notes = [];
     if (good?.plan) notes.push(good.plan);
     for (const g of good?.groups ?? []) if (g.models) notes.push(`${g.short}＝${g.models}`);
-    if (good?.asOf && now - good.asOf > 120_000) notes.push(`資料時間 ${clock(good.asOf)}`);
-    if (r.error && good && !allReset(good, now)) notes.push(r.errorDetail ?? r.error);
+    if (good?.asOf && now - good.asOf > 120_000) notes.push(tr("dataTime", { time: clock(good.asOf) }));
+    if (r.error && good && !allReset(good, now)) notes.push(qt(r.errorDetail ?? r.error));
     // 好幾行（分組）時名稱對齊第一行
     const top = good?.groups ? h_flex().gap(8).items_start() : h_flex().gap(8).items_center();
     return v_flex().gap(2)
@@ -334,16 +348,16 @@ export default class QuotaStatus extends View {
     const button = (id, label, onClick) => div().id(id).px(8).py(2).rounded(4).bg(t.raised).hover((s) => s.bg(t.hover)).text_color(t.muted)
       .on_click((_e, cx) => onClick(cx)).child(label);
     const header = h_flex().items_center().gap(8)
-      .child(div().text_color(t.foreground).font_semibold().child("AI 額度"))
-      .child(div().text_color(t.dim).child(q?.at ? `${clock(q.at)} 更新` : "載入中…"))
+      .child(div().text_color(t.foreground).font_semibold().child(tr("title")))
+      .child(div().text_color(t.dim).child(q?.at ? tr("updated", { time: clock(q.at) }) : tr("loading")))
       .child(div().flex_1())
-      .child(button("quota-settings", "⚙ 設定", () => { this.openSettings(); closeOverlay(props()?.overlay); }))
-      .child(button("quota-refresh", this.busy ? "更新中…" : "↻ 重新整理", (cx) => this.refresh(cx, true)))
+      .child(button("quota-settings", tr("settings"), () => { this.openSettings(); closeOverlay(props()?.overlay); }))
+      .child(button("quota-refresh", tr(this.busy ? "refreshing" : "refresh"), (cx) => this.refresh(cx, true)))
       .child(div().id("quota-close").px(6).text_color(t.dim).hover((s) => s.text_color(t.foreground))
         .on_click(() => closeOverlay(props()?.overlay)).child("✕"));
     return v_flex().size_full().p(14).gap(10).bg(t.popover).text_size(12.5).text_color(t.muted)
       .child(header)
-      .children((q?.configErrors ?? []).map((e) => div().text_size(11).text_color(t.ansi3).child("設定：" + e)))
+      .children((q?.configErrors ?? []).map((e) => div().text_size(11).text_color(t.ansi3).child(tr("configPrefix", { error: qt(e) }))))
       .children((q?.data ?? []).map((r) => this.detailRow(r, t, now, d)));
   }
 
@@ -362,7 +376,7 @@ export default class QuotaStatus extends View {
         }
         this.editor.set_value(text);
       } catch (e) {
-        this.message = { text: "讀不到設定：" + String(e?.message ?? e), error: true };
+        this.message = { key: "readError", vars: { error: String(e?.message ?? e) }, error: true };
       }
       cx.notify();
     });
@@ -374,7 +388,7 @@ export default class QuotaStatus extends View {
     try {
       obj = JSON.parse(this.editor.value());
     } catch (e) {
-      this.message = { text: "JSON 有錯，先修好才能用按鈕：" + e.message, error: true };
+      this.message = { key: "tweakError", vars: { error: e.message }, error: true };
       cx.notify();
       return;
     }
@@ -388,9 +402,9 @@ export default class QuotaStatus extends View {
     const text = this.editor.value();
     try {
       const v = JSON.parse(text);
-      if (!v || typeof v !== "object" || Array.isArray(v)) throw new Error("要是一個 { … } 物件");
+      if (!v || typeof v !== "object" || Array.isArray(v)) throw new Error("OBJECT_REQUIRED");
     } catch (e) {
-      this.message = { text: "JSON 有錯，還沒存：" + e.message, error: true };
+      this.message = { key: "jsonError", vars: { error: e.message === "OBJECT_REQUIRED" ? { key: "objectRequired" } : e.message }, error: true };
       cx.notify();
       return;
     }
@@ -399,15 +413,15 @@ export default class QuotaStatus extends View {
         await writeTextFile(configPath(), text, this.original);
         this.original = text;
       } catch (e) {
-        this.message = { text: "存不進去：" + String(e?.message ?? e) + "（檔案在外面被改過的話，關掉再開一次）", error: true };
+        this.message = { key: "writeError", vars: { error: String(e?.message ?? e) }, error: true };
         cx.notify();
         return;
       }
-      this.message = { text: "已存檔，套用中…", error: false };
+      this.message = { key: "applying", error: false };
       cx.notify();
       this.refresh(cx, false, () => {
         const errs = shared(SHARED_KEY)?.configErrors ?? [];
-        this.message = errs.length ? { text: "已存檔，但這些沒套用：" + errs.join("；"), error: true } : { text: "已存檔並套用", error: false };
+        this.message = errs.length ? { key: "applyError", errors: errs, error: true } : { key: "applied", error: false };
       });
     });
   }
@@ -422,32 +436,36 @@ export default class QuotaStatus extends View {
     const presets = Object.keys(q?.display?.presets ?? PRESET_NAMES);
     const customLayout = Boolean(cur.layout && typeof cur.layout === "object" && cur.layout.default);
     const header = h_flex().items_center().gap(8)
-      .child(div().text_color(t.foreground).font_semibold().child("額度設定"))
+      .child(div().text_color(t.foreground).font_semibold().child(tr("settingsTitle")))
       .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(configPath()))
       .child(div().id("settings-close").px(6).text_color(t.dim).hover((s) => s.text_color(t.foreground))
         .on_click(() => closeOverlay(props()?.overlay)).child("✕"));
     const quick = h_flex().gap(6).items_center()
-      .child(div().text_size(11.5).text_color(t.dim).child("樣式"))
-      .children(presets.map((p) => button("preset-" + p, `${PRESET_NAMES[p] ?? p} ${p}`,
+      .child(div().text_size(11.5).text_color(t.dim).child(tr("style")))
+      .children(presets.map((p) => button("preset-" + p, p,
         (cx) => this.tweak((o) => { o.preset = p; if (o.layout && typeof o.layout === "object") delete o.layout.default; }, cx),
         (cur.preset ?? "compact") === p && !customLayout)))
       .child(div().w(12))
-      .child(div().text_size(11.5).text_color(t.dim).child("百分比"))
-      .child(button("pct-used", "用掉 used", (cx) => this.tweak((o) => { o.percent = "used"; }, cx), (cur.percent ?? "used") === "used"))
-      .child(button("pct-left", "剩下 left", (cx) => this.tweak((o) => { o.percent = "left"; }, cx), cur.percent === "left"));
+      .child(div().text_size(11.5).text_color(t.dim).child(tr("percent")))
+      .child(button("pct-used", tr("used"), (cx) => this.tweak((o) => { o.percent = "used"; }, cx), (cur.percent ?? "used") === "used"))
+      .child(button("pct-left", tr("remaining"), (cx) => this.tweak((o) => { o.percent = "left"; }, cx), cur.percent === "left"));
     const legend = v_flex().gap(2).text_size(11).text_color(t.dim)
-      .child("layout 照順序放元素，寫 default 或單獨一家（claude、codex、grok、agy），寫了就蓋過 preset：")
-      .child("logo 圖示 · name 名稱 · group 分組名（agy） · weekly 週額度% · weekly.bar 週額度條 · weekly.reset 週重置倒數（用到 weeklyResetAt% 才出現）")
-      .child("5h 五小時% · 5h.bar 五小時條 · 5h.reset 五小時倒數（0% 不出現） · 其他字照字面顯示，例如 \"|\"")
-      .child("例：\"layout\": { \"agy\": [\"logo\", \"group\", \"weekly\", \"weekly.reset\", \"5h.bar\"] }　providers 決定順序與要不要顯示");
+      .child(tr("legend1"))
+      .child(tr("legend2"))
+      .child(tr("legend3"))
+      .child(tr("legend4"));
     const errs = q?.configErrors ?? [];
-    const msg = this.message ?? (errs.length ? { text: "目前的設定有問題：" + errs.join("；"), error: true } : null);
+    const msg = this.message ?? (errs.length ? { key: "currentErrors", errors: errs, error: true } : null);
+    const msgVars = msg?.errors ? { error: errorsText(msg.errors) } : Object.fromEntries(Object.entries(msg?.vars ?? {}).map(([k, v]) => [k, qt(v)]));
     const footer = h_flex().gap(8).items_center()
-      .child(div().flex_1().min_w(0).text_size(11.5).text_color(msg?.error ? t.ansi1 : t.ansi2).child(msg?.text ?? ""))
-      .child(button("settings-cancel", "關閉", () => closeOverlay(props()?.overlay), false))
-      .child(button("settings-save", "儲存並套用", (cx) => this.save(cx), true));
+      .child(div().flex_1().min_w(0).text_size(11.5).text_color(msg?.error ? t.ansi1 : t.ansi2).child(msg ? tr(msg.key, msgVars) : ""))
+      .child(button("settings-cancel", tr("close"), () => closeOverlay(props()?.overlay), false))
+      .child(button("settings-save", tr("save"), (cx) => this.save(cx), true));
     return v_flex().size_full().p(14).gap(10).bg(t.popover).text_size(12.5).text_color(t.muted)
       .child(header)
+      .child(h_flex().gap(6).items_center()
+        .child(div().text_size(11.5).text_color(t.dim).child(tr("language")))
+        .children([["auto", "auto"], ["zh-TW", "chinese"], ["en", "english"]].map(([value, key]) => button("language-" + value, tr(key), () => setShared("ui.language", value), (shared("ui.language") ?? "auto") === value))))
       .child(quick)
       .child(legend)
       .child(div().flex_1().min_h(0).rounded(6).border_1().border_color(t.border).bg(t.background).overflow_hidden()
@@ -460,7 +478,7 @@ export default class QuotaStatus extends View {
     try {
       return this.renderInner();
     } catch (e) {
-      return div().px(14).size_full().flex().items_center().text_color(theme().ansi1).child("quota-status 畫面錯誤：" + String(e?.message ?? e).slice(0, 200));
+      return div().px(14).size_full().flex().items_center().text_color(theme().ansi1).child(tr("renderError", { error: String(e?.message ?? e).slice(0, 200) }));
     }
   }
 
@@ -474,10 +492,10 @@ export default class QuotaStatus extends View {
     const label = (icon, text) => h_flex().gap(6).items_center().child(svg(`mods/workspace-chrome/${icon}.svg`).size(13)).child(text);
     const tendrOn = this.tendrShown();
     return h_flex().size_full().px(14).gap(16).items_center().bg(t.chrome).border_t(1).border_color(t.border).text_size(11.8).text_color(t.muted)
-      .child(label(space?.machine ? "server" : "monitor", space?.machine ?? "This computer"))
+      .child(label(space?.machine ? "server" : "monitor", space?.machine ?? tr("computer")))
       .when(Boolean(space?.branch), el => el.child(label("branch", space.branch)))
-      .child(h_flex().gap(6).items_center().child(div().size(6).rounded(3).bg(t.dim)).child(`${list.length} agents`)
-        .when(needs > 0, el => el.child(div().text_color(t.blocked).child(`· ${needs} needs you`))))
+      .child(h_flex().gap(6).items_center().child(div().size(6).rounded(3).bg(t.dim)).child(tr("agents", { count: list.length }))
+        .when(needs > 0, el => el.child(div().text_color(t.blocked).child(tr("needs", { count: needs })))))
       .child(div().flex_1())
       // tendr：守著爐火的人。看板開著時火是亮的
       .when(Boolean(find(layout(), "tendr")), (el) => el.child(h_flex().id("tendr-toggle").gap(5).items_center().px(6).rounded(4)
@@ -492,6 +510,6 @@ export default class QuotaStatus extends View {
         .child(svg("mods/workspace-chrome/monitor.svg").size(13))
         .child("tunr")))
       .child(this.quotaChips(t))
-      .child(div().id("palette").text_color(t.dim).on_click(() => run("app.palette")).child(`${window()?.platform === "macos" ? "⌘" : "Ctrl"} Shift P  commands`));
+      .child(div().id("palette").text_color(t.dim).on_click(() => run("app.palette")).child(`${window()?.platform === "macos" ? "⌘" : "Ctrl"} Shift P  ${tr("commands")}`));
   }
 }

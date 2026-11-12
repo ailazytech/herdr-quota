@@ -74,6 +74,8 @@ node ~/.config/herdr-app/mods/quota-status/quota.mjs detail   # table
 
 ## Settings
 
+The interface follows the system language by default. Use “語言 Language” in the settings window to switch immediately between System, 繁體中文, and English, or use the `quota-status.language-auto`, `quota-status.language-zh`, and `quota-status.language-en` commands. The language selection is shared with other mods.
+
 Click the quota in the status bar for the popup, then "⚙ 設定" (settings) to edit them right in the app (or `herdr-app do quota-status.settings`): quick buttons for the preset and the percentage on top, the JSON below. Saving checks the JSON first and applies it at once.
 
 Settings live in `~/.config/herdr-app/mods/quota-status/config.json`; updates leave it alone, and any editor works too (applied at the next refresh, within a minute). A wrong entry is listed in the popup and the settings window and falls back to its default, so the bar keeps working. `node quota.mjs config` prints the settings in effect.
