@@ -44,7 +44,7 @@ tendr 的安裝會把自己的位置寫進 `~/.tendr/install.json`，狀態列�
 
 ## 資料夾側欄：ranchr（選用）
 
-資料夾側欄、機器分頁、「執行與待觀看」和 pane 標題列的位址，搬到另一個專案 [ranchr](https://github.com/ailazytech/ranchr) 了。ranchr 的 layout 在有裝 quota-status 時，底部狀態列就用它，所以兩個一起裝，就同時有額度和資料夾側欄。
+資料夾側欄、機器分頁、「執行與待觀看」和 pane 標題列的位址，搬到另一個專案 [ranchr](https://github.com/ailazytech/herdr-ranchr) 了。ranchr 的 layout 在有裝 quota-status 時，底部狀態列就用它，所以兩個一起裝，就同時有額度和資料夾側欄。
 
 之前用 `quota-folders` 的：裝 ranchr 時會從你的 `quota-folders` 版面開始，資料夾、釘選、主控標記都不用搬。herdr-quota 不再更新 `quota-folders`，確定 ranchr 沒問題後可以刪掉它。
 

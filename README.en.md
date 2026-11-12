@@ -44,7 +44,7 @@ With the small tunr player installed (`mods/tunr`), the status bar also gets a t
 
 ## Folder sidebar: ranchr (optional)
 
-The folder sidebar, the machine tabs, 執行與待觀看 (running and to look at) and the addresses in pane headers moved to their own project, [ranchr](https://github.com/ailazytech/ranchr). ranchr's layout uses quota-status for its bottom bar when it's installed, so with both you get the quotas and the folder sidebar.
+The folder sidebar, the machine tabs, 執行與待觀看 (running and to look at) and the addresses in pane headers moved to their own project, [ranchr](https://github.com/ailazytech/herdr-ranchr). ranchr's layout uses quota-status for its bottom bar when it's installed, so with both you get the quotas and the folder sidebar.
 
 Coming from `quota-folders`: installing ranchr starts from your `quota-folders` layout, and folders, pins and lead marks need no moving. herdr-quota no longer updates `quota-folders`; delete it once ranchr works for you.
 
