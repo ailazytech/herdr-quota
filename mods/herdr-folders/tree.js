@@ -331,6 +331,14 @@ export function workspaceTarget(command, current, machines) {
   return match && Number(match[1]) < tabs.length ? tabs[Number(match[1])] : undefined;
 }
 
+// The tab to show once the shown space changed from `before` to `active` (an agent
+// clicked, a key): its machine's, unless every machine is shown. Only a change moves
+// it, so picking a tab and then its space never bounces back.
+export function followWorkspace(current, before, active) {
+  if (!active || before === undefined || before === active.id || current === null) return current;
+  return active.machine ?? "";
+}
+
 export function workspaceSpace(spaces, workspace, last) {
   const candidates = spaces.filter((space) => (space.machine ?? "") === workspace);
   return candidates.find((space) => space.id === last)?.id ?? candidates[0]?.id ?? null;

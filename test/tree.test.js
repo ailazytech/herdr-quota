@@ -488,3 +488,15 @@ test("addressesBySpace: per space, agents no terminal started first, then the st
   assert.equal(out.s3, undefined);
   assert.deepEqual(addressesBySpace([], new Set()), {});
 });
+
+test("followWorkspace: the tab follows a change of the shown space, never on its own", async () => {
+  const { followWorkspace } = await import("../mods/herdr-folders/tree.js");
+  const local = { id: "a", machine: null };
+  const remote = { id: "dev/b", machine: "dev" };
+  assert.equal(followWorkspace("dev", "dev/b", local), "");
+  assert.equal(followWorkspace("", "a", remote), "dev");
+  assert.equal(followWorkspace("dev", "dev/b", remote), "dev"); // no change: stays
+  assert.equal(followWorkspace("", undefined, remote), ""); // first look: stays
+  assert.equal(followWorkspace(null, "a", remote), null); // all machines shown: stays
+  assert.equal(followWorkspace("dev", "dev/c", remote), "dev"); // same machine
+});

@@ -19,7 +19,8 @@
 // and a colored name while the rest step back, a 主控 has its own spinner, a space's
 // name is followed, while the pointer is on its row, by its first agent's address (a click copies it), and a
 // space's right click opens this mod's menu, which lists every agent's address to copy;
-// machine workspace tabs filter the sidebar and remember each machine's last space.
+// machine workspace tabs filter the sidebar, remember each machine's last space, and
+// follow the shown space to its machine.
 //
 // Workspace spaces: stable colored avatars, worktrees under their checkout,
 // grouped by machine when more than one is known. After a space's name, the repo
@@ -30,7 +31,7 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, agents, machines, panes, run, exec, hc, theme, shared, setShared, watchFolder, window, layout, props, nextCommand } from "herdr";
 import { Folders, overlayFor, openEmoji, openSortMenu, openSpaceMenu, markSpace, setSort, FADE, named, mark } from "./folders.js";
-import { nameOf, PINNED, workspaceKnown, workspaceTarget, workspaceSpace } from "./tree.js";
+import { nameOf, PINNED, workspaceKnown, workspaceTarget, workspaceSpace, followWorkspace } from "./tree.js";
 
 const WORKSPACE_KEY = "herdr-folders.workspace";
 const LAST_SPACE_KEY = "herdr-folders.workspace-last-space";
@@ -115,7 +116,7 @@ export default class Spaces extends View {
     // `git status` walks the whole tree, on another machine a process there:
     // only when its answer could have changed (see `due`).
     cx.timer.every(250, (cx) => this.checkNew(cx));
-    // herdr-app do herdr-folders.emoji, or herdr-folders:emoji in keys.json: the shown space's emoji.
+    // herdr-app do herdr-folders.emoji, or herdr-folders.emoji in keys.json: the shown space's emoji.
     // Likewise menu for its menu, and role-main, role-sub, role-none to mark it.
     cx.spawn(async (cx) => {
       for (;;) {
@@ -138,7 +139,7 @@ export default class Spaces extends View {
   checkNew(cx) {
     const now = Date.now();
     const sp = spaces();
-    this.rememberSpace(sp);
+    if (this.rememberSpace(sp)) cx.notify();
     this.folded = this.folders.foldedMachines();
     this.folders.adoptNew(sp);
     for (const s of sp) if (!this.shown.has(s.id)) this.born[s.id] ??= now;
@@ -147,12 +148,20 @@ export default class Spaces extends View {
     if (sp.some((s) => !this.shown.has(s.id)) || this.orderingDue(now)) cx.notify();
   }
 
+  // Remembers each machine's shown space, and moves the tab to the shown space's
+  // machine when that space changes. True when the tab moved.
   rememberSpace(sp) {
     const active = sp.find((s) => s.active);
-    if (!active) return;
+    if (!active) return false;
     const key = active.machine ?? "";
     const last = shared(LAST_SPACE_KEY) ?? {};
     if (last[key] !== active.id) setShared(LAST_SPACE_KEY, { ...last, [key]: active.id });
+    const current = workspace();
+    const next = followWorkspace(current, this.lastActive, active);
+    this.lastActive = active.id;
+    if (next === current) return false;
+    setShared(WORKSPACE_KEY, next);
+    return true;
   }
 
   selectWorkspace(target) {

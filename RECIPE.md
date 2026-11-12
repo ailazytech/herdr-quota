@@ -32,7 +32,7 @@ Herdr's default window (spaces and agents on the left, tabs on top, pane cards, 
 - Antigravity is optional: on a computer without `agy` it's left out entirely (no `⚠️`).
 - Clicking the chips opens the popup; ↻ forces a refresh past the cache. Both views share one `shared("quota-status.quota")` value, so either refresh updates both.
 - Settings changes apply at the next refresh (within a minute), or at once when saved from the settings window.
-- Mod commands (`herdr-app do quota-status.<command>`, or `quota-status:<command>` in keys.json): `detail` opens the popup, `settings` the settings window, `refresh` forces a refresh, `tendr` toggles the tendr panel.
+- Mod commands (`herdr-app do quota-status.<command>`, or `quota-status.<command>` in keys.json): `detail` opens the popup, `settings` the settings window, `refresh` forces a refresh, `tendr` toggles the tendr panel.
 - If drawing the bar ever throws, it shows "quota-status 畫面錯誤：…" in `ansi1` instead of freezing on the last frame.
 - "tendr" shows or hides the right panel on the tendr board (`layout.select {stack: "panel-body", child: "tendr"}`, `layout.show {id: "panel"}`). At start it adds `tendr` to the shared `workspace.panels`, so the shipped tab bar remembers the panel per space.
 - If tendr is installed (`~/.tendr/install.json` exists), the bar also brings Claude Code back after a reboot: it runs tendr's `resume.mjs` at start and every minute for the first 10 minutes, and posts "已接回 N 個 Claude 對話" when it resumed something.

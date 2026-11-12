@@ -6,6 +6,7 @@
 // 設定也由它讀、驗證，算好每一家的 layout 一起回傳（display）。
 // Antigravity 的額度分組（Gemini、Opus＝Claude 與 GPT、Argon）：logo、name 放一次，其餘元素每組各一段。
 // 有裝 tendr 的話（~/.tendr/install.json），也負責開機後接回 Claude，以及開關右側的 tendr 看板（火焰圖示：守著爐火的人）
+// 有裝 tunr 的話（mods/tunr），狀態列多一顆開關這個小播放器的按鈕
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex, v_flex, Editor, EditorState } from "gpui-base";
 import { spaces, agents, theme, run, window, exec, shared, setShared, openOverlay, closeOverlay, nextCommand, props, layout, notify, home, appHome, readTextFile, writeTextFile, settings } from "herdr";
@@ -112,7 +113,11 @@ export default class QuotaStatus extends View {
       this.resumeTries = 0;
       this.resume(cx);
       cx.timer.every(60_000, (cx) => { if (this.resumeTries < RESUME_TRIES) this.resume(cx); });
-      // herdr-app do quota-status.<指令> 或 keys.json 綁 quota-status:<指令>
+      // 有裝 tunr（mods/tunr）的話，狀態列多一顆開關它的小按鈕
+      this.tunr = false;
+      this.findTunr(cx);
+      cx.timer.every(60_000, (cx) => this.findTunr(cx));
+      // herdr-app do quota-status.<指令> 或 keys.json 綁 quota-status.<指令>
       cx.spawn(async (cx) => {
         for (;;) {
           const c = await nextCommand();
@@ -166,6 +171,14 @@ export default class QuotaStatus extends View {
       } catch {
         // hc 還沒起來之類的：下一分鐘再試
       }
+    });
+  }
+
+  findTunr(cx) {
+    cx.spawn(async (cx) => {
+      let has = false;
+      try { has = Boolean(await readTextFile(appHome() + "/mods/tunr/mod.json")); } catch {}
+      if (has !== this.tunr) { this.tunr = has; cx.notify(); }
     });
   }
 
@@ -472,6 +485,12 @@ export default class QuotaStatus extends View {
         .on_click(() => this.toggleTendr())
         .child(svg("mods/" + MOD + "/flame.svg").size(13).text_color(tendrOn ? t.ansi3 : t.dim))
         .child("tendr")))
+      // tunr：小播放器。mod.open 再按一次會關掉它
+      .when(Boolean(this.tunr), (el) => el.child(h_flex().id("tunr-toggle").gap(5).items_center().px(6).rounded(4)
+        .text_color(t.dim).hover((s) => s.text_color(t.foreground))
+        .on_click(() => run("mod.open", { name: "tunr" }))
+        .child(svg("mods/workspace-chrome/monitor.svg").size(13))
+        .child("tunr")))
       .child(this.quotaChips(t))
       .child(div().id("palette").text_color(t.dim).on_click(() => run("app.palette")).child(`${window()?.platform === "macos" ? "⌘" : "Ctrl"} Shift P  commands`));
   }

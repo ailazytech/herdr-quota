@@ -41,6 +41,8 @@ tendr's installer records its location in `~/.tendr/install.json`. When the stat
 - shows "tendr" with a flame icon to toggle the board on the right
 - runs tendr's `resume.mjs` after the app starts, bringing back the Claude conversations from before the reboot
 
+With the small tunr player installed (`mods/tunr`), the status bar also gets a tunr button that opens and closes it.
+
 ## Folder sidebar (optional)
 
 `quota-folders` is `quota-main` with the Spaces list on the left replaced by the `herdr-folders` mod:
@@ -52,7 +54,7 @@ node herdr-quota/install.mjs --switch --folders
 - **Folders:** nest them, and put spaces from different machines in one folder; a folded folder shows its count and what's inside
 - **Icons:** a space shows its agent's icon and a folder a plain icon, and either can use an emoji
 - **Pinning:** click the pin on a hovered row, or drag a row into Pinned
-- **Machine tabs:** switch between all machines, this computer and each remote machine; tabs show status and remember the last space on each machine. Suggested `keys.json` bindings: `ctrl-alt-0` → `herdr-folders:workspace-all`, `ctrl-alt-1`…`ctrl-alt-9` → `herdr-folders:workspace-1`…`workspace-9`, `ctrl-alt-]` → `herdr-folders:workspace-next`, `ctrl-alt-[` → `herdr-folders:workspace-prev`. Add them yourself.
+- **Machine tabs:** switch between all machines, this computer and each remote machine; tabs show status and remember the last space on each machine, and follow you when you go to another machine's space (from the Agents list, say). Add keys to `keys.json`'s `global` yourself, for example by tab position: `ctrl-alt-1` → `herdr-folders.workspace-all`, `ctrl-alt-2` → `herdr-folders.workspace-1` (this computer), `ctrl-alt-3` → `herdr-folders.workspace-2` (the first remote one)…; there are also `workspace-next` and `workspace-prev`
 - **Running and to look at (執行與待觀看):** under Pinned, every space with an agent working, waiting on you, or done and not looked at yet, folded folders included, with the folders it sits in as small dim text before its name; the name moves to a second line when both don't fit. A click goes straight to an agent there that's done, if any. Pinned and this list stay put; only the folder tree scrolls
 - **Addresses:** while the pointer is on a space's row, its first agent's terminal address (such as `t16`) shows after the name; a click copies it. The top of the right-click menu lists every agent's address in the space to copy. Each pane's own address is in its header
 - **Status:** one mark per agent on the right, as in the Agents list
@@ -149,14 +151,14 @@ Example: only the 5-hour limit for Claude, and agy's weekly limits as bars:
 
 ## Commands
 
-`herdr-app do quota-status.<command>`, or `quota-status:<command>` in `keys.json`:
+`herdr-app do quota-status.<command>`, or `quota-status.<command>` in `keys.json`:
 
 - `detail`: open the popup
 - `settings`: open the settings window
 - `refresh`: refetch now, ignoring the cache
 - `tendr`: toggle the tendr board on the right
 
-`herdr-app do herdr-folders.<command>`, or `herdr-folders:<command>` in `keys.json`, on the shown space:
+`herdr-app do herdr-folders.<command>`, or `herdr-folders.<command>` in `keys.json`, on the shown space:
 
 - `menu`: open the space's menu
 - `emoji`: change its emoji

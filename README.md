@@ -41,6 +41,8 @@ tendr 的安裝會把自己的位置寫進 `~/.tendr/install.json`，狀態列�
 - 顯示火焰圖示的「tendr」，開關右側看板
 - App 開機後跑 tendr 的 `resume.mjs`，把重開機前的 Claude 對話接回來
 
+另外有裝 tunr 小播放器（`mods/tunr`）的話，狀態列也會多一顆 tunr 按鈕，點了開關它。
+
 ## 資料夾側欄（選用）
 
 `quota-folders` 跟 `quota-main` 一樣，只是把左側的 Spaces 換成 `herdr-folders` mod：
@@ -52,7 +54,7 @@ node herdr-quota/install.mjs --switch --folders
 - **資料夾**：可以多層，不同機器的 space 也能放在同一個資料夾；收起來時顯示數量和裡面的狀態
 - **圖示**：space 預設顯示 agent 的圖案，資料夾預設一般圖示，都可以換成 emoji
 - **釘選**：滑過列時點圖釘，或把列拖進 Pinned 區
-- **機器分頁**：在「全部」、這台與其他機器之間切換；分頁顯示狀態並記住各機器上次看的 space。建議在 `keys.json` 綁 `ctrl-alt-0` → `herdr-folders:workspace-all`、`ctrl-alt-1`…`ctrl-alt-9` → `herdr-folders:workspace-1`…`workspace-9`、`ctrl-alt-]` → `herdr-folders:workspace-next`、`ctrl-alt-[` → `herdr-folders:workspace-prev`；需自行設定
+- **機器分頁**：在「全部」、這台與其他機器之間切換；分頁顯示狀態並記住各機器上次看的 space，從 Agents 清單等地方切到別台的 space 時分頁會跟過去。快捷鍵要自己加進 `keys.json` 的 `global`，例如照分頁位置：`ctrl-alt-1` → `herdr-folders.workspace-all`、`ctrl-alt-2` → `herdr-folders.workspace-1`（這台）、`ctrl-alt-3` → `herdr-folders.workspace-2`（第一台遠端）…；另有 `workspace-next`、`workspace-prev`
 - **執行與待觀看**：釘選區下面列出所有有 agent 在跑、在等你，或已經 done 還沒看的 space，收起來的資料夾裡的也算；名稱前面用淺色小字標它在哪個資料夾，放不下時名稱換到下一行。點下去時，裡面有 agent 已經 done 就直接跳到那個 agent。釘選和這一區固定在上面，只有資料夾樹會捲動
 - **位址**：滑鼠移到 space 那一列時，名稱後面顯示它第一個 agent 的終端機位址（例如 `t16`），點一下複製；右鍵選單最上面列出這個 space 所有 agent 的位址，點了就複製。每個 pane 自己的位址在 pane 標題列
 - **狀態**：右邊每個 agent 一個標記，跟 Agents 清單一樣
@@ -149,14 +151,14 @@ agy 的額度是分組的：`logo`、`name` 只放一次，其他元素每組各
 
 ## 指令
 
-`herdr-app do quota-status.<指令>`，或在 `keys.json` 綁 `quota-status:<指令>`：
+`herdr-app do quota-status.<指令>`，或在 `keys.json` 綁 `quota-status.<指令>`：
 
 - `detail`：開詳細小視窗
 - `settings`：開設定視窗
 - `refresh`：不管快取，立刻重抓
 - `tendr`：開關右側的 tendr 看板
 
-`herdr-app do herdr-folders.<指令>`，或在 `keys.json` 綁 `herdr-folders:<指令>`，都是對目前顯示的 space：
+`herdr-app do herdr-folders.<指令>`，或在 `keys.json` 綁 `herdr-folders.<指令>`，都是對目前顯示的 space：
 
 - `menu`：開 space 的選單
 - `emoji`：換 emoji
